@@ -28,6 +28,9 @@ Kaynak proje: `../mobile-base` (Expo/React Native, `lib/supabase/*` + `supabase/
 
 ## Fazlar
 
+Tamamlananların kaydı ve alınan kararlar aşağıda. Kalan fazların ayrıntılı iş planı:
+[docs/plan.md](docs/plan.md)
+
 ### Faz 0 — İskelet ✅
 6 proje, katman referansları, NuGet paketleri, `Directory.Build.props`, `docker-compose.yml` (Postgres 17 + healthcheck).
 
