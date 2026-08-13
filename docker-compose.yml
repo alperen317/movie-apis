@@ -8,7 +8,10 @@ services:
       POSTGRES_USER: movie
       POSTGRES_PASSWORD: movie_dev_password
     ports:
-      - "5432:5432"
+      # 5432 on the host is deliberately avoided: other projects on this
+      # machine already publish Postgres there and on 5433/5434. The container
+      # still listens on 5432 internally.
+      - "5435:5432"
     volumes:
       - movie-db-data:/var/lib/postgresql/data
     healthcheck:

@@ -11,7 +11,7 @@ public sealed class MovieDbContextFactory : IDesignTimeDbContextFactory<MovieDbC
 {
     /// <summary>Matches the service defined in docker-compose.yml.</summary>
     private const string LocalDevelopmentConnectionString =
-        "Host=localhost;Port=5432;Database=movie;Username=movie;Password=movie_dev_password";
+        "Host=localhost;Port=5435;Database=movie;Username=movie;Password=movie_dev_password";
 
     public MovieDbContext CreateDbContext(string[] args)
     {

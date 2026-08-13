@@ -31,16 +31,24 @@ Kaynak proje: `../mobile-base` (Expo/React Native, `lib/supabase/*` + `supabase/
 ### Faz 0 — İskelet ✅
 6 proje, katman referansları, NuGet paketleri, `Directory.Build.props`, `docker-compose.yml` (Postgres 17 + healthcheck).
 
-### Faz 1 — Domain + EF Core şema
+### Faz 1 — Domain + EF Core şema ✅
 - Entity'ler: `SavedMedia`, `WatchLogEntry`, `EpisodeProgress`, `RecommendationFeedback`,
   `MediaList`, `ListMember`, `ListItem`, `ListPoll`, `ListPollCandidate`, `ListPollVote`.
-- `auth.users` + `public.profiles` **tek tabloda birleşiyor**: `display_name`, `avatar_variant`,
-  `avatar_seed`, `watch_region` alanları `ApplicationUser : IdentityUser<Guid>` üzerine taşınır.
-  Supabase'de bu ikilik PostgREST'in `auth` şemasını göremmesinden kaynaklanıyordu
+- `auth.users` + `public.profiles` **tek tabloda birleşti**: `display_name`, `avatar_variant`,
+  `avatar_seed`, `watch_region` alanları `ApplicationUser : IdentityUser<Guid>` üzerine taşındı.
+  Supabase'de bu ikilik PostgREST'in `auth` şemasını görememesinden kaynaklanıyordu
   (`0002_profiles.sql`'deki trigger + backfill yalnızca bunu senkron tutmak içindi); .NET'te
   o kısıt yok, dolayısıyla trigger da senkronizasyon da gereksiz.
 - `genres text[]` → `string[]` (Npgsql native), `timestamptz` → `DateTime` (UTC).
-- İlk EF Core migration + `docker compose up -d db` üzerinde doğrulama.
+- Identity rolsüz kuruldu (`IdentityUserContext`): uygulamada global rol kavramı yok,
+  `MemberRole` liste bazlı. Identity tabloları `users`, `user_claims`, `user_logins`,
+  `user_tokens` olarak yeniden adlandırıldı. Toplam 14 tablo.
+- **`MediaSnapshot` owned type denendi ve geri alındı.** EF Core 10, entity ve complex type
+  kolonlarını birlikte kapsayan indeks tanımlayamıyor; `saved_media` ve `list_items`
+  tekillik kısıtları tam olarak buna ihtiyaç duyuyor. Yedi TMDB alanı üç entity'ye
+  düzleştirildi, böylece her kısıt EF modelinin içinde kaldı.
+- Migration uygulandı ve kısıtlar canlı veritabanında test edildi (tekillik, rating aralığı,
+  liste adı uzunluğu, cascade).
 
 ### Faz 2 — Kimlik doğrulama
 - ASP.NET Identity + JWT (access + refresh token).
@@ -100,7 +108,14 @@ Dockerfile, hosting, CI.
 ## Yerel geliştirme
 
 ```bash
-docker compose up -d db      # Postgres 17, localhost:5432
+docker compose up -d db      # Postgres 17, localhost:5435
 dotnet build                 # tüm çözüm
 dotnet run --project src/Movie.Api
+
+# Şema
+dotnet ef database update --project src/Movie.Infrastructure
+docker exec -it movie-db psql -U movie -d movie
 ```
+
+Port 5432 değil **5435**: bu makinede başka projeler 5432/5433/5434'ü zaten kullanıyor.
+Bağlantı dizesi `MOVIE_DB_CONNECTION` ortam değişkeniyle geçersiz kılınabilir.
