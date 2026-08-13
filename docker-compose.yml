@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: movie-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: movie
+      POSTGRES_USER: movie
+      POSTGRES_PASSWORD: movie_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - movie-db-data:/var/lib/postgresql/data
+    healthcheck:
+      # `dotnet ef database update` gibi adımlar konteyner "running" olur olmaz
+      # değil, Postgres gerçekten bağlantı kabul ettiğinde çalışmalı.
+      test: ["CMD-SHELL", "pg_isready -U movie -d movie"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  movie-db-data:

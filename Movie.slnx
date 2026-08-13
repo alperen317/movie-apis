@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Movie.Api/Movie.Api.csproj" />
+    <Project Path="src/Movie.Application/Movie.Application.csproj" />
+    <Project Path="src/Movie.Domain/Movie.Domain.csproj" />
+    <Project Path="src/Movie.Infrastructure/Movie.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Movie.Api.IntegrationTests/Movie.Api.IntegrationTests.csproj" />
+    <Project Path="tests/Movie.Application.Tests/Movie.Application.Tests.csproj" />
+  </Folder>
+</Solution>
