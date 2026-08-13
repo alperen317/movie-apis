@@ -10,8 +10,8 @@ public sealed class RateLimitOptions
     /// <summary>Requests per window that may cause an email to be sent.</summary>
     public int EmailDispatchPermitLimit { get; init; } = 5;
 
-    /// <summary>Code submissions per window.</summary>
-    public int CodeSubmissionPermitLimit { get; init; } = 20;
+    /// <summary>Password and code submissions per window.</summary>
+    public int CredentialSubmissionPermitLimit { get; init; } = 20;
 
     public int WindowMinutes { get; init; } = 10;
 }
@@ -25,11 +25,12 @@ public static class RateLimiting
     public const string EmailDispatch = "email-dispatch";
 
     /// <summary>
-    /// For code submission. The five-attempt cap on each code already protects
-    /// a single account; this bounds spraying guesses across many accounts from
-    /// one host, which that cap cannot see.
+    /// For anything that submits a secret — a password or a code. Per-account
+    /// defences already exist on both paths (five attempts per code, lockout
+    /// after ten bad passwords); this bounds spraying guesses across many
+    /// accounts from one host, which those cannot see.
     /// </summary>
-    public const string CodeSubmission = "code-submission";
+    public const string CredentialSubmission = "credential-submission";
 
     public static IServiceCollection AddApiRateLimiting(
         this IServiceCollection services,
@@ -45,7 +46,9 @@ public static class RateLimiting
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
             options.AddPolicy(EmailDispatch, PartitionByCaller(limits.EmailDispatchPermitLimit, window));
-            options.AddPolicy(CodeSubmission, PartitionByCaller(limits.CodeSubmissionPermitLimit, window));
+            options.AddPolicy(
+                CredentialSubmission,
+                PartitionByCaller(limits.CredentialSubmissionPermitLimit, window));
         });
     }
 

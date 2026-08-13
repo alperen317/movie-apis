@@ -21,8 +21,9 @@ public sealed class RegistrationTests(MovieApiFactory factory) : IClassFixture<M
         var code = factory.Emails.CodeSentTo(email);
         code.Length.ShouldBe(6);
 
+        // Confirming signs the user in, so sign-up ends with a usable session.
         var verified = await client.PostAsJsonAsync("/auth/verify-email", new { email, code });
-        verified.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        verified.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         await using var context = factory.CreateContext();
         var user = await context.Users.SingleAsync(u => u.Email == email);
@@ -88,7 +89,7 @@ public sealed class RegistrationTests(MovieApiFactory factory) : IClassFixture<M
 
         second.ShouldNotBe(first);
         (await Verify(client, email, first)).ShouldBe(HttpStatusCode.BadRequest);
-        (await Verify(client, email, second)).ShouldBe(HttpStatusCode.NoContent);
+        (await Verify(client, email, second)).ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]

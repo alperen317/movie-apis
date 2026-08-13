@@ -39,7 +39,7 @@ public class MovieApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// </summary>
     protected virtual int EmailDispatchPermitLimit => 1000;
 
-    protected virtual int CodeSubmissionPermitLimit => 1000;
+    protected virtual int CredentialSubmissionPermitLimit => 1000;
 
     public async Task InitializeAsync()
     {
@@ -70,8 +70,8 @@ public class MovieApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             "RateLimiting:EmailDispatchPermitLimit",
             EmailDispatchPermitLimit.ToString());
         builder.UseSetting(
-            "RateLimiting:CodeSubmissionPermitLimit",
-            CodeSubmissionPermitLimit.ToString());
+            "RateLimiting:CredentialSubmissionPermitLimit",
+            CredentialSubmissionPermitLimit.ToString());
 
         builder.ConfigureTestServices(services =>
             services.Replace(ServiceDescriptor.Scoped<IEmailSender>(_ => Emails)));

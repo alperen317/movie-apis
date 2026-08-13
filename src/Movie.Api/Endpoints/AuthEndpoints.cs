@@ -18,7 +18,16 @@ public static class AuthEndpoints
             .RequireRateLimiting(RateLimiting.EmailDispatch);
 
         group.MapPost("/verify-email", VerifyEmail)
-            .RequireRateLimiting(RateLimiting.CodeSubmission);
+            .RequireRateLimiting(RateLimiting.CredentialSubmission);
+
+        group.MapPost("/login", Login).RequireRateLimiting(RateLimiting.CredentialSubmission);
+
+        // Not throttled: it carries a 256-bit secret, so there is nothing to
+        // guess, and throttling it would punish a client whose access token
+        // expired at an awkward moment.
+        group.MapPost("/refresh", Refresh);
+
+        group.MapPost("/logout", Logout);
     }
 
     /// <summary>
@@ -30,10 +39,7 @@ public static class AuthEndpoints
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["request"] = ["Email and password are required."],
-            });
+            return MissingFields("Email and password are required.");
         }
 
         var result = await sender.Send(new RegisterCommand(request.Email, request.Password));
@@ -50,10 +56,7 @@ public static class AuthEndpoints
     {
         if (string.IsNullOrWhiteSpace(request.Email))
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["email"] = ["Email is required."],
-            });
+            return MissingFields("Email is required.");
         }
 
         await sender.Send(new ResendVerificationCommand(request.Email));
@@ -66,17 +69,16 @@ public static class AuthEndpoints
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Code))
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["request"] = ["Email and code are required."],
-            });
+            return MissingFields("Email and code are required.");
         }
 
         var result = await sender.Send(new VerifyEmailCommand(request.Email, request.Code));
 
-        return result switch
+        return result.Outcome switch
         {
-            VerificationResult.Success => Results.NoContent(),
+            // Confirming signs the user in, so sign-up ends with a usable
+            // session rather than a trip back to the login screen.
+            VerificationResult.Success => Results.Ok(TokenResponse.From(result.Tokens!)),
 
             // Separated from a plain rejection so the client can say "ask for a
             // new code" instead of "wrong code". Both require already knowing
@@ -89,12 +91,84 @@ public static class AuthEndpoints
         };
     }
 
+    private static async Task<IResult> Login(LoginRequest request, ISender sender)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return MissingFields("Email and password are required.");
+        }
+
+        var result = await sender.Send(new LoginCommand(request.Email, request.Password));
+
+        if (result.Tokens is not null)
+        {
+            return Results.Ok(TokenResponse.From(result.Tokens));
+        }
+
+        return result.Failure switch
+        {
+            LoginFailure.EmailNotConfirmed => Unauthorized(
+                "email_not_confirmed",
+                "Confirm your email address before signing in."),
+            LoginFailure.LockedOut => Unauthorized(
+                "locked_out",
+                "Too many failed attempts. Try again later."),
+            _ => Unauthorized("invalid_credentials", "That email or password is not right."),
+        };
+    }
+
+    private static async Task<IResult> Refresh(RefreshRequest request, ISender sender)
+    {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            return MissingFields("A refresh token is required.");
+        }
+
+        var tokens = await sender.Send(new RefreshCommand(request.RefreshToken));
+
+        return tokens is null
+            ? Unauthorized("invalid_refresh_token", "Sign in again.")
+            : Results.Ok(TokenResponse.From(tokens));
+    }
+
+    private static async Task<IResult> Logout(RefreshRequest request, ISender sender)
+    {
+        // Signing out with a token that was already dead still leaves the
+        // caller signed out, which is what they asked for.
+        if (!string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            await sender.Send(new LogoutCommand(request.RefreshToken));
+        }
+
+        return Results.NoContent();
+    }
+
+    private static IResult MissingFields(string detail) =>
+        Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = [detail] });
+
     private static IResult Problem(string code, string detail) =>
         Results.Problem(detail: detail, statusCode: StatusCodes.Status400BadRequest, title: code);
+
+    private static IResult Unauthorized(string code, string detail) =>
+        Results.Problem(detail: detail, statusCode: StatusCodes.Status401Unauthorized, title: code);
 
     public sealed record RegisterRequest(string Email, string Password);
 
     public sealed record ResendVerificationRequest(string Email);
 
     public sealed record VerifyEmailRequest(string Email, string Code);
+
+    public sealed record LoginRequest(string Email, string Password);
+
+    public sealed record RefreshRequest(string RefreshToken);
+
+    /// <param name="ExpiresAt">
+    /// So the client can refresh ahead of expiry rather than finding out
+    /// through a failed request.
+    /// </param>
+    public sealed record TokenResponse(string AccessToken, DateTime ExpiresAt, string RefreshToken)
+    {
+        public static TokenResponse From(AuthTokens tokens) =>
+            new(tokens.AccessToken, tokens.AccessTokenExpiresAtUtc, tokens.RefreshToken);
+    }
 }

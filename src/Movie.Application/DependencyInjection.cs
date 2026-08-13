@@ -10,6 +10,8 @@ public static class DependencyInjection
         // generator, so there is no assembly scanning at startup.
         services.AddMediator(options => options.ServiceLifetime = ServiceLifetime.Scoped);
 
+        services.AddScoped<Features.Authentication.AuthTokenIssuer>();
+
         return services;
     }
 }
