@@ -10,9 +10,11 @@ using Microsoft.IdentityModel.Tokens;
 using Movie.Application.Abstractions;
 using Movie.Application.Abstractions.Authentication;
 using Movie.Application.Abstractions.Email;
+using Movie.Application.Abstractions.Lists;
 using Movie.Domain.Users;
 using Movie.Infrastructure.Authentication;
 using Movie.Infrastructure.Email;
+using Movie.Infrastructure.Lists;
 using Movie.Infrastructure.Persistence;
 
 namespace Movie.Infrastructure;
@@ -107,6 +109,10 @@ public static class DependencyInjection
         // for why its TOTP provider was not used.
         services.AddScoped<IVerificationCodeService, VerificationCodeService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+
+        // The only route to a shared list. See IListAccess for why handlers do
+        // not query `lists` themselves.
+        services.AddScoped<IListAccess, ListAccess>();
     }
 
     private static void AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
