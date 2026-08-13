@@ -12,8 +12,8 @@ services:
     volumes:
       - movie-db-data:/var/lib/postgresql/data
     healthcheck:
-      # `dotnet ef database update` gibi adımlar konteyner "running" olur olmaz
-      # değil, Postgres gerçekten bağlantı kabul ettiğinde çalışmalı.
+      # Steps like `dotnet ef database update` must run once Postgres actually
+      # accepts connections, not the moment the container reports "running".
       test: ["CMD-SHELL", "pg_isready -U movie -d movie"]
       interval: 5s
       timeout: 5s
