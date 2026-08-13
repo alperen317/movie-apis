@@ -53,11 +53,31 @@ Kaynak proje: `../mobile-base` (Expo/React Native, `lib/supabase/*` + `supabase/
 ### Faz 2 — Kimlik doğrulama ✅
 Uçları elle geçmek için sıralı senaryo: [docs/auth-test-protokolu.md](docs/auth-test-protokolu.md)
 
-- ASP.NET Identity + JWT (access + refresh token).
-- Supabase'in 6 haneli OTP akışı → Identity'nin `EmailTokenProvider`'ı (TOTP tabanlı, zaten 6 hane):
-  kayıt doğrulama, kod yeniden gönderme, şifre sıfırlama.
-- "Remember me" → refresh token ömrü; mobildeki `authStorage.ts` mantığı korunur.
-- `delete_account()` RPC → `DELETE /me`, cascade ile.
+11 uç: `register`, `verify-email`, `resend-verification`, `login`, `refresh`, `logout`,
+`forgot-password`, `reset-password`, ve `GET`/`PUT`/`DELETE /me`.
+
+Plandan üç sapma oldu, üçü de ölçüme dayanıyor:
+
+- **6 haneli kodlar Identity'nin TOTP sağlayıcısından değil, kendi
+  `verification_codes` tablomuzdan geliyor.** Identity'nin penceresi ölçüldü: 3
+  dakikalık timestep ve ±2 doğrulama aralığı, yani kod üretim anına göre 6–9 dakika
+  yaşıyor. İkisi de belgelenmemiş iç detay. Kendi tablomuz kesin 1 saat süre, tek
+  kullanımlık olma ve 5 deneme sınırı veriyor — sonuncusu TOTP'de imkânsızdı ve altı
+  hanenin tek gerçek koruması o.
+- **"Remember me" sunucuya hiç dokunmuyor.** `authStorage.ts` incelendiğinde bunun
+  tamamen istemci tarafı bir saklama kararı olduğu görüldü: token diske mi belleğe mi
+  yazılacak. Supabase her iki durumda da aynı token'ı üretiyordu.
+- **Access token 60 değil 15 dakika.** Token iptal edilemiyor, dolayısıyla çıkış
+  yenilemeyi durduruyor ama kullanımı durdurmuyor — elle testte çıkış sonrası
+  `PUT /me`'nin çalıştığı görüldü. Ömür, o pencerenin genişliği demek.
+
+Refresh token'lar rotasyonlu: her kullanımda değişiyor, harcanmış bir token'ın
+yeniden ortaya çıkması hırsızlık sayılıp o kullanıcının tüm oturumlarını düşürüyor.
+Çıkışla iptal edilen token bundan ayrı tutuluyor — o sadece bayat.
+
+Bilinen ve belgelenmiş sınır: access token iptal edilemez, çıkış/şifre sıfırlama
+sonrası en fazla 15 dakika çalışmaya devam eder. Hesap silme istisna, çünkü `/me`
+claim'lere değil satıra bakıyor.
 
 ### Faz 3 — RLS → Authorization  ⚠️ en kritik faz
 RLS artık veritabanında değil. Her sorgu sahiplik filtresi, her komut yetki kontrolü almalı.
@@ -87,7 +107,10 @@ Feature bazlı dikey dilimler. RPC → endpoint eşlemesi:
 | `cast_poll_vote` | `POST /polls/{id}/votes` |
 | `get_list_poll` | `GET /lists/{id}/poll` |
 | `get_list_watch_summary` | `GET /lists/{id}/watch-summary` |
-| `delete_account` | `DELETE /me` |
+| `delete_account` | `DELETE /me` — *Faz 2'de yapıldı* |
+
+Ayrıca kişisel içerik uçları: `saved_media`, `watch_log`, `episode_progress`,
+`recommendation_feedback` için CRUD ve importer'ın kullandığı toplu ekleme.
 
 Rate limit (`0012`, `0014`: 10 dakikada 20 deneme) → ASP.NET Core rate limiting middleware.
 
