@@ -91,6 +91,7 @@ public static class DependencyInjection
         // The six-digit codes are ours, not Identity's: see VerificationCode
         // for why its TOTP provider was not used.
         services.AddScoped<IVerificationCodeService, VerificationCodeService>();
+        services.AddScoped<IRefreshTokenService, RefreshTokenService>();
     }
 
     private static void AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
