@@ -22,5 +22,29 @@ services:
       timeout: 5s
       retries: 10
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: movie-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Development turns on the Scalar browser and the logging email sender.
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: 8080
+
+      # Reaches Postgres over the compose network, so the host port mapping is
+      # irrelevant here.
+      ConnectionStrings__Database: "Host=db;Port=5432;Database=movie;Username=movie;Password=movie_dev_password"
+
+      # A local-only key. Production reads this from its own environment; see
+      # the startup check in Movie.Infrastructure.DependencyInjection.
+      Jwt__SigningKey: "compose-development-signing-key-not-for-production"
+    ports:
+      - "5080:8080"
+
 volumes:
   movie-db-data:

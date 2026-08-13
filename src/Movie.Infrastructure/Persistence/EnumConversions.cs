@@ -1,16 +1,19 @@
+using System.Text;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Movie.Infrastructure.Persistence;
 
 /// <summary>
-/// Persists an enum as its lower-cased name. EF's built-in
+/// Persists an enum as its snake_case name. EF's built-in
 /// <c>HasConversion&lt;string&gt;()</c> would write <c>"Movie"</c>; Supabase
 /// stored <c>'movie'</c>, and the check constraints, existing exports and the
 /// mobile client's string literals all assume that casing.
 /// </summary>
 /// <remarks>
-/// Two overloads because entity properties and complex-type properties are
-/// configured through unrelated builder types.
+/// Single-word values are unaffected, so this only shows up on the likes of
+/// <c>EmailConfirmation</c>, which would otherwise land as
+/// <c>emailconfirmation</c> — the one lower-case run in a schema that is
+/// snake_case everywhere else.
 /// </remarks>
 public static class EnumConversions
 {
@@ -26,9 +29,26 @@ public static class EnumConversions
 
     private static System.Linq.Expressions.Expression<Func<TEnum, string>> ToText<TEnum>()
         where TEnum : struct, Enum =>
-        value => value.ToString()!.ToLowerInvariant();
+        value => ToSnakeCase(value.ToString()!);
 
     private static System.Linq.Expressions.Expression<Func<string, TEnum>> FromText<TEnum>()
         where TEnum : struct, Enum =>
-        text => Enum.Parse<TEnum>(text, true);
+        text => Enum.Parse<TEnum>(text.Replace("_", string.Empty), true);
+
+    private static string ToSnakeCase(string name)
+    {
+        var builder = new StringBuilder(name.Length + 4);
+
+        for (var i = 0; i < name.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(name[i]))
+            {
+                builder.Append('_');
+            }
+
+            builder.Append(char.ToLowerInvariant(name[i]));
+        }
+
+        return builder.ToString();
+    }
 }

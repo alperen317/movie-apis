@@ -107,15 +107,32 @@ Dockerfile, hosting, CI.
 
 ## Yerel geliştirme
 
-```bash
-docker compose up -d db      # Postgres 17, localhost:5435
-dotnet build                 # tüm çözüm
-dotnet run --project src/Movie.Api
+Her şeyi Docker'da çalıştırmak:
 
-# Şema
-dotnet ef database update --project src/Movie.Infrastructure
+```bash
+docker compose up -d --build
+```
+
+| Adres | Ne |
+|---|---|
+| http://localhost:5080/scalar/v1 | API dokümantasyonu (Scalar) |
+| http://localhost:5080/openapi/v1.json | Ham OpenAPI belgesi |
+| localhost:5435 | Postgres |
+
+Migration'lar geliştirmede uygulama açılışında uygulanıyor, ayrı bir adım gerekmiyor.
+
+Sadece veritabanını Docker'da, API'yi yerelde çalıştırmak:
+
+```bash
+docker compose up -d db
+dotnet run --project src/Movie.Api          # http://localhost:5294
 docker exec -it movie-db psql -U movie -d movie
 ```
 
-Port 5432 değil **5435**: bu makinede başka projeler 5432/5433/5434'ü zaten kullanıyor.
-Bağlantı dizesi `MOVIE_DB_CONNECTION` ortam değişkeniyle geçersiz kılınabilir.
+Postgres host tarafında 5432 değil **5435**: bu makinede başka projeler 5432/5433/5434'ü
+zaten kullanıyor. Konteyner içinde 5432 dinlemeye devam ediyor, dolayısıyla `api` servisi
+`db:5432`'ye bağlanıyor. `dotnet ef` komutları için bağlantı dizesi `MOVIE_DB_CONNECTION`
+ortam değişkeniyle geçersiz kılınabilir.
+
+Compose dosyasındaki şifre ve JWT anahtarı yalnızca yerel geliştirme içindir. Production'da
+`Jwt__SigningKey` ortamdan gelmeli; eksik veya 32 bayttan kısaysa uygulama açılmaz.

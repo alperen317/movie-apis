@@ -1,8 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using Movie.Api;
 using Movie.Api.Endpoints;
 using Movie.Api.OpenApi;
 using Movie.Application;
 using Movie.Infrastructure;
+using Movie.Infrastructure.Persistence;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +22,12 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference(options => options.WithTitle("Movie API"));
+
+    // So a fresh checkout works from `docker compose up` alone. Deliberately
+    // development-only: applying schema changes automatically on start is not
+    // something a deployment should do behind your back.
+    await using var scope = app.Services.CreateAsyncScope();
+    await scope.ServiceProvider.GetRequiredService<MovieDbContext>().Database.MigrateAsync();
 }
 
 app.UseHttpsRedirection();
