@@ -8,7 +8,9 @@ public static class AuthEndpoints
 {
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/auth").AllowAnonymous();
+        // Tagged explicitly: left alone, the generated document names the group
+        // after this class, which is an implementation detail.
+        var group = app.MapGroup("/auth").AllowAnonymous().WithTags("Authentication");
 
         group.MapPost("/register", Register).RequireRateLimiting(RateLimiting.EmailDispatch);
 

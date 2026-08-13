@@ -7,7 +7,7 @@ public static class MeEndpoints
 {
     public static void MapMeEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/me").RequireAuthorization();
+        var group = app.MapGroup("/me").RequireAuthorization().WithTags("Account");
 
         // Reads straight from the token for now. Phase 2e replaces this with
         // the stored profile and adds the update and delete operations.
