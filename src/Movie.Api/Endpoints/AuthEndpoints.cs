@@ -28,6 +28,12 @@ public static class AuthEndpoints
         group.MapPost("/refresh", Refresh);
 
         group.MapPost("/logout", Logout);
+
+        group.MapPost("/forgot-password", ForgotPassword)
+            .RequireRateLimiting(RateLimiting.EmailDispatch);
+
+        group.MapPost("/reset-password", ResetPassword)
+            .RequireRateLimiting(RateLimiting.CredentialSubmission);
     }
 
     /// <summary>
@@ -143,6 +149,50 @@ public static class AuthEndpoints
         return Results.NoContent();
     }
 
+    private static async Task<IResult> ForgotPassword(ForgotPasswordRequest request, ISender sender)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return MissingFields("Email is required.");
+        }
+
+        await sender.Send(new ForgotPasswordCommand(request.Email));
+
+        // Always 202: an unknown address must look exactly like a known one.
+        return Results.Accepted();
+    }
+
+    private static async Task<IResult> ResetPassword(ResetPasswordRequest request, ISender sender)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email)
+            || string.IsNullOrWhiteSpace(request.Code)
+            || string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return MissingFields("Email, code and new password are required.");
+        }
+
+        var result = await sender.Send(
+            new ResetPasswordCommand(request.Email, request.Code, request.NewPassword));
+
+        if (result.PasswordErrors.Count > 0)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["password"] = [.. result.PasswordErrors],
+            });
+        }
+
+        return result.Outcome switch
+        {
+            VerificationResult.Success => Results.NoContent(),
+            VerificationResult.Expired => Problem("code_expired", "That code has expired."),
+            VerificationResult.TooManyAttempts => Problem(
+                "too_many_attempts",
+                "Too many incorrect attempts. Request a new code."),
+            _ => Problem("invalid_code", "That code is not valid."),
+        };
+    }
+
     private static IResult MissingFields(string detail) =>
         Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = [detail] });
 
@@ -161,6 +211,10 @@ public static class AuthEndpoints
     public sealed record LoginRequest(string Email, string Password);
 
     public sealed record RefreshRequest(string RefreshToken);
+
+    public sealed record ForgotPasswordRequest(string Email);
+
+    public sealed record ResetPasswordRequest(string Email, string Code, string NewPassword);
 
     /// <param name="ExpiresAt">
     /// So the client can refresh ahead of expiry rather than finding out

@@ -297,6 +297,56 @@ refresh dene.
 > Telefondan çıkmak tabletteki oturumu kapatmamalı. Bu davranış `refresh_tokens`
 > tablosunun kullanıcı başına tek satır tutmamasının sebebi.
 
+### B7 · Şifre sıfırlama tüm oturumları kapatır
+
+Önce `test1@example.com` ile **iki kez** giriş yap, iki `refreshToken`'ı da not et.
+
+`POST /auth/forgot-password`
+
+```json
+{ "email": "test1@example.com" }
+```
+
+**Beklenen: `202`** — loga bir sıfırlama kodu düşer.
+
+Sonra `POST /auth/reset-password`
+
+```json
+{
+  "email": "test1@example.com",
+  "code": "<sıfırlama kodu>",
+  "newPassword": "a different long one"
+}
+```
+
+**Beklenen: `204`** — ardından:
+
+- Eski şifreyle giriş → `401`
+- Yeni şifreyle giriş → `200`
+- **Not ettiğin iki refreshToken ile refresh** → ikisi de `401`
+
+> İnsanlar şifresini genellikle **başkası bildiği için** sıfırlar. O kişinin
+> oturumu ayakta kalsaydı işlemin anlamı kalmazdı.
+
+### B8 · Sıfırlama kodu e-posta doğrulamaya yaramaz
+
+Doğrulanmış bir hesap için `forgot-password` çağır, gelen kodu al ve
+`verify-email` ile kullanmayı dene.
+
+**Beklenen: `400`** — `invalid_code`
+
+> Kodlar amaca bağlı. Bir akış için gönderilen kod diğerinde harcanamaz.
+
+### B9 · Zayıf yeni şifre kodu yakmaz
+
+Sıfırlama kodunu al, `reset-password`'ü **kısa** bir şifreyle çağır → `400`.
+Sonra **aynı kodla** düzgün bir şifre gönder.
+
+**Beklenen: `204`** — kod hâlâ geçerli.
+
+> Şifre politikası, kod harcanmadan önce kontrol ediliyor. Ters sırada olsaydı
+> bir yazım hatası kullanıcıyı yeni kod istemek için posta kutusuna geri gönderirdi.
+
 ---
 
 ## C · Sınırlar
@@ -339,6 +389,9 @@ engelleyebilir.
 | `invalid_code` | `/auth/verify-email` | Yanlış kod, bilinmeyen adres veya zaten doğrulanmış hesap |
 | `code_expired` | `/auth/verify-email` | Kod 1 saatlik ömrünü doldurdu |
 | `too_many_attempts` | `/auth/verify-email` | 5 yanlış deneme — kod tamamen öldü |
+| `invalid_code` | `/auth/reset-password` | Yanlış kod, bilinmeyen adres veya doğrulanmamış hesap |
+| `code_expired` | `/auth/reset-password` | Kod 1 saatlik ömrünü doldurdu |
+| `too_many_attempts` | `/auth/reset-password` | 5 yanlış deneme |
 | `invalid_refresh_token` | `/auth/refresh` | Bilinmeyen, süresi dolmuş, iptal edilmiş veya harcanmış token |
 
 ---

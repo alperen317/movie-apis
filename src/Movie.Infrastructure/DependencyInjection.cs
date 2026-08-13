@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -86,7 +87,16 @@ public static class DependencyInjection
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
             })
             .AddEntityFrameworkStores<MovieDbContext>()
-            .AddSignInManager();
+            .AddSignInManager()
+
+            // Just the one provider, not AddDefaultTokenProviders(). The
+            // six-digit codes users type are ours (see VerificationCode);
+            // this covers the internal token ResetPasswordAsync needs, which
+            // never leaves the server and is never seen by anyone.
+            .AddTokenProvider<DataProtectorTokenProvider<ApplicationUser>>(
+                TokenOptions.DefaultProvider);
+
+        services.AddDataProtection();
 
         // The six-digit codes are ours, not Identity's: see VerificationCode
         // for why its TOTP provider was not used.

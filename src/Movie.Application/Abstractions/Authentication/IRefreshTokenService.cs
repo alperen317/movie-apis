@@ -15,6 +15,12 @@ public interface IRefreshTokenService
 
     /// <summary>Sign-out. Unknown or already-revoked tokens are accepted quietly.</summary>
     Task RevokeAsync(string refreshToken, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ends every session a user has. Used when the password changes: whoever
+    /// prompted the reset should not be left holding a working session.
+    /// </summary>
+    Task RevokeAllAsync(Guid userId, CancellationToken cancellationToken = default);
 }
 
 /// <param name="UserId">Null when the token was unusable, for any reason.</param>

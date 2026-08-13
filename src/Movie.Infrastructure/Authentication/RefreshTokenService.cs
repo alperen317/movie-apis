@@ -107,6 +107,9 @@ public sealed class RefreshTokenService(MovieDbContext database) : IRefreshToken
             cancellationToken);
     }
 
+    public Task RevokeAllAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        RevokeEveryTokenForAsync(userId, DateTime.UtcNow, cancellationToken);
+
     private async Task RevokeEveryTokenForAsync(
         Guid userId,
         DateTime now,
