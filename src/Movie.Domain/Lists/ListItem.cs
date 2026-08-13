@@ -21,7 +21,19 @@ public sealed class ListItem
 
     public MediaList? List { get; init; }
 
-    public required MediaSnapshot Media { get; init; }
+    public required int MediaId { get; init; }
+
+    public required MediaType MediaType { get; init; }
+
+    public required string Title { get; init; }
+
+    public string? PosterPath { get; init; }
+
+    public decimal? VoteAverage { get; init; }
+
+    public string? Year { get; init; }
+
+    public string[] Genres { get; init; } = [];
 
     public required Guid AddedById { get; init; }
 

@@ -13,7 +13,19 @@ public sealed class WatchLogEntry
 
     public required Guid UserId { get; init; }
 
-    public required MediaSnapshot Media { get; init; }
+    public required int MediaId { get; init; }
+
+    public required MediaType MediaType { get; init; }
+
+    public required string Title { get; init; }
+
+    public string? PosterPath { get; init; }
+
+    public decimal? VoteAverage { get; init; }
+
+    public string? Year { get; init; }
+
+    public string[] Genres { get; init; } = [];
 
     /// <summary>
     /// When the watch happened. May differ from <see cref="CreatedAt"/> because
