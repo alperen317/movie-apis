@@ -7,6 +7,8 @@ ilerlemek gerekiyor.
 Taban adres: `http://localhost:5080`
 Scalar arayüzü: `http://localhost:5080/scalar/v1`
 
+Bu dosya protokolün tek kaynağıdır; uçlar değiştikçe burası güncellenir.
+
 ---
 
 ## Başlamadan
@@ -366,6 +368,98 @@ engelleyebilir.
 
 ---
 
+## D · Hesap
+
+Bu bölüm `Authorization: Bearer <accessToken>` başlığı ister. Token'ı A bölümünün
+04 veya 09. adımından alabilirsin. Scalar kullanıyorsan sağ üstteki **Bearer
+Token** alanına bir kez yapıştırman yeterli.
+
+### D1 · Profili oku
+
+`GET /me`
+
+**Beklenen: `200`**
+
+```json
+{
+  "id": "0198…",
+  "email": "test1@example.com",
+  "displayName": null,
+  "avatarVariant": "beam",
+  "avatarSeed": null,
+  "watchRegion": null
+}
+```
+
+> Yeni hesapta `displayName`, `avatarSeed` ve `watchRegion` boş; `avatarVariant`
+> varsayılan olarak `beam`.
+
+### D2 · Profili güncelle
+
+`PUT /me`
+
+```json
+{
+  "displayName": "Alperen",
+  "avatarVariant": "bauhaus",
+  "avatarSeed": "seed-42",
+  "watchRegion": "tr"
+}
+```
+
+**Beklenen: `200`** — güncellenmiş profil döner. `GET /me` ile tekrar oku,
+kalıcı olduğunu gör. `watchRegion` **`TR`** olarak dönmeli — büyük harfe
+çevriliyor.
+
+### D3 · Eksik alan silinir
+
+`PUT /me` — bu sefer yalnızca `avatarVariant` gönder:
+
+```json
+{ "avatarVariant": "ring" }
+```
+
+**Beklenen: `200`** — ardından `GET /me`:
+
+- `displayName` → `null`
+- `avatarSeed` → `null`
+- `watchRegion` → `null`
+
+> **Bu uç `PATCH` değil `PUT`.** Gönderdiğin gövde profilin düzenlenebilir
+> kısmının tamamının yerine geçiyor; bir alanı yazmamak onu **siliyor**.
+> Supabase istemcisi yalnızca değişen alanları gönderiyordu, burada davranış
+> farklı — Faz 7'de istemci buna göre yazılacak.
+
+### D4 · Geçersiz değerler reddedilir
+
+`PUT /me` ile iki ayrı deneme:
+
+```json
+{ "avatarVariant": "beam", "displayName": "<61 karakter>" }
+{ "avatarVariant": "beam", "watchRegion": "TUR" }
+```
+
+**Beklenen: `400`** — biri ad uzunluğu, diğeri bölge kodu iki harf olmadığı için.
+
+### D5 · Hesabı sil
+
+`DELETE /me`
+
+**Beklenen: `204`** — sonra **aynı token'la**:
+
+- `GET /me` → `401`
+- `POST /auth/login` (aynı e-posta ve şifre) → `401`
+
+> **Burası önemli:** token hâlâ geçerli imzalı ve süresi dolmamış. Ama `/me`
+> artık veritabanından okuyor, satır olmadığı için 401 dönüyor. Bu, hesap
+> silmenin anında etkili olmasını sağlayan şey.
+
+Silmenin ne kadarını götürdüğünü görmek istersen Adminer'dan bak — kullanıcının
+refresh token'ları, doğrulama kodları, kaydettiği içerikler, liste üyelikleri,
+hepsi cascade ile gider.
+
+---
+
 ## Referans
 
 | Kural | Değer | Nerede |
@@ -424,9 +518,14 @@ dolana kadar çalışmaya devam ediyordu.
 kullanıcının tüm refresh token'larını iptal eder, yani aynı pencere orada da
 geçerli.
 
-Bu pencereyi kapatmak isteseydik iki yol vardı — access token ömrünü kısaltmak,
-ya da her istekte token'ı veritabanından doğrulamak. İkincisi JWT'nin stateless
-olma avantajını tümden götürdüğü için tercih edilmedi.
+**Tek istisna: hesap silme.** `GET /me` token'ın claim'lerine değil veritabanına
+bakıyor, dolayısıyla satır silindiğinde token anında işe yaramaz hale geliyor
+(D5). Bu, token'ın iptal edildiği anlamına gelmiyor — imzası hâlâ geçerli — ama
+arkasında kullanıcı kalmadığı için servis edilmiyor.
+
+Bu pencereyi tamamen kapatmak isteseydik iki yol vardı: access token ömrünü
+kısaltmak, ya da **her** istekte token'ı veritabanından doğrulamak. İkincisi
+JWT'nin stateless olma avantajını tümden götürdüğü için tercih edilmedi.
 
 ---
 

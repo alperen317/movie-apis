@@ -50,7 +50,7 @@ Kaynak proje: `../mobile-base` (Expo/React Native, `lib/supabase/*` + `supabase/
 - Migration uygulandı ve kısıtlar canlı veritabanında test edildi (tekillik, rating aralığı,
   liste adı uzunluğu, cascade).
 
-### Faz 2 — Kimlik doğrulama
+### Faz 2 — Kimlik doğrulama ✅
 Uçları elle geçmek için sıralı senaryo: [docs/auth-test-protokolu.md](docs/auth-test-protokolu.md)
 
 - ASP.NET Identity + JWT (access + refresh token).
