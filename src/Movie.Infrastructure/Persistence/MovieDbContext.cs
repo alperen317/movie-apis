@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Movie.Application.Abstractions;
 using Movie.Domain.Library;
 using Movie.Domain.Lists;
@@ -100,14 +101,94 @@ public sealed class MovieDbContext(DbContextOptions<MovieDbContext> options, ICu
 
     public override int SaveChanges()
     {
+        GuardTamperableColumns();
         TouchUpdatedAt();
         return base.SaveChanges();
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        GuardTamperableColumns();
         TouchUpdatedAt();
         return base.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Stands in for the two tamper-guard triggers.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in the handlers, for the reason the originals were
+    /// triggers: a rule that only holds where someone remembered to write it
+    /// does not hold. Every write goes through this method.
+    /// </remarks>
+    private void GuardTamperableColumns()
+    {
+        foreach (var entry in ChangeTracker.Entries<MediaList>())
+        {
+            if (entry.State is not EntityState.Modified)
+            {
+                continue;
+            }
+
+            // The update rule says which rows may change, never which columns.
+            // Without this, anyone allowed to rename a list could rewrite its
+            // creator in the same statement and take it over.
+            var createdBy = entry.Property(list => list.CreatedById);
+            if (!Equals(createdBy.OriginalValue, createdBy.CurrentValue))
+            {
+                throw new InvalidOperationException(
+                    "A list's creator cannot be changed.");
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<ListMember>())
+        {
+            if (entry.State is not EntityState.Modified)
+            {
+                continue;
+            }
+
+            GuardMembership(entry);
+        }
+    }
+
+    private static void GuardMembership(EntityEntry<ListMember> entry)
+    {
+        // Left free, a member could repoint their own row at a list they were
+        // never invited to and mark it accepted.
+        foreach (var name in (string[])[nameof(ListMember.ListId), nameof(ListMember.UserId), nameof(ListMember.Role)])
+        {
+            var property = entry.Property(name);
+            if (!Equals(property.OriginalValue, property.CurrentValue))
+            {
+                throw new InvalidOperationException(
+                    $"A membership's {name} cannot be changed.");
+            }
+        }
+
+        var status = entry.Property(member => member.Status);
+        var from = (MemberStatus)status.OriginalValue;
+        var to = (MemberStatus)status.CurrentValue;
+
+        if (from == to)
+        {
+            return;
+        }
+
+        // Asked of the entity as it was loaded, so the rule lives in the domain
+        // and can be reasoned about without a database.
+        var asLoaded = new ListMember
+        {
+            ListId = entry.Entity.ListId,
+            UserId = entry.Entity.UserId,
+            Status = from,
+        };
+
+        if (!asLoaded.CanTransitionTo(to))
+        {
+            throw new InvalidOperationException(
+                $"A membership cannot go from {from} to {to}.");
+        }
     }
 
     /// <summary>

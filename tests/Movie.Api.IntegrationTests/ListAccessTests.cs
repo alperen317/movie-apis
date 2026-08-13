@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Movie.Domain.Lists;
 using Movie.Domain.Users;
 using Movie.Infrastructure.Authentication;
@@ -66,14 +67,13 @@ public sealed class ListAccessTests(PostgresFixture postgres) : IClassFixture<Po
         var member = await CreateUserAsync();
         var list = await CreateListAsync(owner, (member, MemberStatus.Accepted));
 
-        // A member row claiming the owner role would not be enough: ownership
-        // is read off the list, so tampering with a membership cannot confer
-        // it.
+        // Written in SQL on purpose. Going through the context is refused by
+        // the tamper guard, so this puts the database in the state that guard
+        // exists to prevent and checks the answer does not depend on it.
         await using (var context = postgres.CreateContext())
         {
-            var row = context.ListMembers.Single(m => m.UserId == member && m.ListId == list);
-            context.Entry(row).Property(x => x.Role).CurrentValue = MemberRole.Owner;
-            await context.SaveChangesAsync();
+            await context.Database.ExecuteSqlAsync(
+                $"update list_members set role = 'owner' where user_id = {member} and list_id = {list}");
         }
 
         (await Access(member).ForOwnerAsync(list)).ShouldBeNull();
