@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Movie.Application.Abstractions.Authentication;
 using Movie.Domain.Users;
@@ -25,6 +26,10 @@ public sealed class AuthenticationTests(MovieApiFactory factory) : IClassFixture
     [Fact]
     public async Task A_protected_endpoint_accepts_a_signed_token_and_sees_the_caller()
     {
+        // The account is seeded directly rather than registered, so this stays
+        // a test of the token pipeline. It has to exist at all because /me
+        // reads the row — a valid signature alone is not enough.
+        await SeedCallerAsync();
         var client = CreateAuthenticatedClient(IssueToken().Value);
 
         var response = await client.GetAsync("/me");
@@ -34,6 +39,29 @@ public sealed class AuthenticationTests(MovieApiFactory factory) : IClassFixture
         body.ShouldNotBeNull();
         body.Id.ShouldBe(UserId.ToString());
         body.Email.ShouldBe("caller@example.com");
+    }
+
+    private async Task SeedCallerAsync()
+    {
+        await using var context = factory.CreateContext();
+
+        if (await context.Users.FindAsync(UserId) is not null)
+        {
+            return;
+        }
+
+        context.Users.Add(new ApplicationUser
+        {
+            Id = UserId,
+            Email = "caller@example.com",
+            UserName = "caller@example.com",
+            NormalizedEmail = "CALLER@EXAMPLE.COM",
+            NormalizedUserName = "CALLER@EXAMPLE.COM",
+            EmailConfirmed = true,
+            SecurityStamp = Guid.NewGuid().ToString(),
+        });
+
+        await context.SaveChangesAsync();
     }
 
     [Fact]

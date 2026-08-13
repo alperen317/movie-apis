@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Movie.Api;
 using Movie.Api.Endpoints;
@@ -11,6 +13,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
+// Enums travel as lower-case names, the same values the database stores and
+// the mobile client's string literals already assume ("beam", not 0 or "Beam").
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(
+        new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
+
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsDevelopment());
 builder.Services.AddAuthorization();
