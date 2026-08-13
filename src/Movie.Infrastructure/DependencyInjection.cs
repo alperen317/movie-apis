@@ -7,8 +7,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Movie.Application.Abstractions.Authentication;
+using Movie.Application.Abstractions.Email;
 using Movie.Domain.Users;
 using Movie.Infrastructure.Authentication;
+using Movie.Infrastructure.Email;
 using Movie.Infrastructure.Persistence;
 
 namespace Movie.Infrastructure;
@@ -17,13 +19,34 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        bool isDevelopment)
     {
         services.AddPersistence(configuration);
         services.AddIdentity();
         services.AddJwtAuthentication(configuration);
+        services.AddEmail(isDevelopment);
 
         return services;
+    }
+
+    private static void AddEmail(this IServiceCollection services, bool isDevelopment)
+    {
+        services.AddScoped<IVerificationEmailSender, VerificationEmailSender>();
+
+        if (isDevelopment)
+        {
+            // Writes the code straight to the log so the flow can be exercised
+            // without an email provider. Registering this anywhere else would
+            // publish live codes to the logs, so the real sender (phase 6) has
+            // to exist before this branch is allowed to disappear.
+            services.AddScoped<IEmailSender, LoggingEmailSender>();
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "No production email sender is configured yet. See phase 6 of MIGRATION.md.");
+        }
     }
 
     private static void AddPersistence(this IServiceCollection services, IConfiguration configuration)

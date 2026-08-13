@@ -1,11 +1,15 @@
+using Movie.Api;
 using Movie.Api.Endpoints;
+using Movie.Application;
 using Movie.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsDevelopment());
 builder.Services.AddAuthorization();
+builder.Services.AddApiRateLimiting(builder.Configuration);
 
 var app = builder.Build();
 
@@ -15,9 +19,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapAuthEndpoints();
 app.MapMeEndpoints();
 
 app.Run();
