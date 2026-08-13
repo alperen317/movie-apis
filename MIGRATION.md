@@ -51,6 +51,8 @@ Kaynak proje: `../mobile-base` (Expo/React Native, `lib/supabase/*` + `supabase/
   liste adı uzunluğu, cascade).
 
 ### Faz 2 — Kimlik doğrulama
+Uçları elle geçmek için sıralı senaryo: [docs/auth-test-protokolu.md](docs/auth-test-protokolu.md)
+
 - ASP.NET Identity + JWT (access + refresh token).
 - Supabase'in 6 haneli OTP akışı → Identity'nin `EmailTokenProvider`'ı (TOTP tabanlı, zaten 6 hane):
   kayıt doğrulama, kod yeniden gönderme, şifre sıfırlama.
