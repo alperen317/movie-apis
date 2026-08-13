@@ -20,6 +20,11 @@ public sealed class JwtOptions
     /// </summary>
     public string SigningKey { get; init; } = string.Empty;
 
-    /// <summary>Matches the Supabase default, so client refresh timing is unchanged.</summary>
-    public int AccessTokenMinutes { get; init; } = 60;
+    /// <summary>
+    /// Deliberately shorter than the hour Supabase used. An access token cannot
+    /// be revoked, so signing out stops renewal but leaves the token usable —
+    /// for writes as well as reads — until it expires. This is how long that
+    /// window stays open.
+    /// </summary>
+    public int AccessTokenMinutes { get; init; } = 15;
 }

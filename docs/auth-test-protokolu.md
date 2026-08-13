@@ -466,7 +466,7 @@ hepsi cascade ile gider.
 |---|---|---|
 | Şifre en az | 8 karakter | Başka şart yok — büyük harf, rakam, sembol aranmıyor |
 | Doğrulama kodu | 6 hane · 1 saat | Tek kullanımlık, 5 yanlış deneme hakkı |
-| Access token | 1 saat | `expiresAt` alanında döner |
+| Access token | 15 dakika | `expiresAt` alanında döner |
 | Refresh token | 60 gün | Her kullanımda değişir |
 | Hesap kilidi | 10 hata · 15 dk | Kilitliyken şifre doğru olsa da giriş yok |
 | Kayıt / yeniden gönderme | 5 istek / 10 dk | IP başına |
@@ -495,7 +495,8 @@ hepsi cascade ile gider.
 Test ederken şuna denk geleceksin ve bozukmuş gibi görünecek:
 
 - İki kez giriş yaparsın; **ilk access token hâlâ `200` döner**
-- Çıkış yaparsın; **aynı access token hâlâ `200` döner**
+- Çıkış yaparsın; **aynı access token hâlâ `200` döner** — üstelik yalnızca
+  okumaz, `PUT /me` ile **yazabilir de**
 
 İkisi de beklenen davranış. İki token temelden farklı çalışıyor:
 
@@ -513,10 +514,13 @@ telefon ve tablet aynı anda açık olabilsin diye.
 Supabase'de de aynıydı: `signOut()` refresh token'ı iptal ediyor, JWT süresi
 dolana kadar çalışmaya devam ediyordu.
 
-**Pratikte ne anlama geliyor:** çıkış yapmak kalıcı erişimi keser (refresh token
-ölür), ama eldeki access token en fazla bir saat daha çalışır. Şifre sıfırlama
-kullanıcının tüm refresh token'larını iptal eder, yani aynı pencere orada da
-geçerli.
+**Pratikte ne anlama geliyor:** çıkış yapmak **yenilemeyi** durdurur (refresh
+token ölür), **kullanımı** değil. Eldeki access token en fazla 15 dakika daha
+çalışır — okuma ve yazma dahil. Şifre sıfırlama da tüm refresh token'ları iptal
+eder, aynı pencere orada da geçerli.
+
+Access token ömrü bu yüzden Supabase'in bir saatinden kısa tutuldu: iptal
+edilemeyen bir jetonun ömrü, doğrudan bu pencerenin genişliği demek.
 
 **Tek istisna: hesap silme.** `GET /me` token'ın claim'lerine değil veritabanına
 bakıyor, dolayısıyla satır silindiğinde token anında işe yaramaz hale geliyor

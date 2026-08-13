@@ -81,13 +81,15 @@ public sealed class AuthenticationTests(MovieApiFactory factory) : IClassFixture
     }
 
     [Fact]
-    public void An_issued_token_expires_an_hour_out()
+    public void An_issued_token_is_short_lived()
     {
         var token = IssueToken();
 
+        // Signing out cannot revoke a token, so its lifetime is the window in
+        // which a signed-out one still works. Kept short for that reason.
         token.ExpiresAtUtc.ShouldBeInRange(
-            DateTime.UtcNow.AddMinutes(59),
-            DateTime.UtcNow.AddMinutes(61));
+            DateTime.UtcNow.AddMinutes(14),
+            DateTime.UtcNow.AddMinutes(16));
     }
 
     private AccessToken IssueToken()
