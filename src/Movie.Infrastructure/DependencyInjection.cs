@@ -63,11 +63,11 @@ public static class DependencyInjection
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
             })
             .AddEntityFrameworkStores<MovieDbContext>()
-            .AddSignInManager()
+            .AddSignInManager();
 
-            // Registers the TOTP-based email provider used for the six-digit
-            // sign-up and password-reset codes.
-            .AddDefaultTokenProviders();
+        // The six-digit codes are ours, not Identity's: see VerificationCode
+        // for why its TOTP provider was not used.
+        services.AddScoped<IVerificationCodeService, VerificationCodeService>();
     }
 
     private static void AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)

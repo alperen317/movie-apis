@@ -17,6 +17,8 @@ namespace Movie.Infrastructure.Persistence;
 public sealed class MovieDbContext(DbContextOptions<MovieDbContext> options)
     : IdentityUserContext<ApplicationUser, Guid>(options)
 {
+    public DbSet<VerificationCode> VerificationCodes => Set<VerificationCode>();
+
     public DbSet<SavedMedia> SavedMedia => Set<SavedMedia>();
 
     public DbSet<WatchLogEntry> WatchLog => Set<WatchLogEntry>();
