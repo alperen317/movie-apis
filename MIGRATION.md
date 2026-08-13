@@ -79,20 +79,38 @@ Bilinen ve belgelenmiş sınır: access token iptal edilemez, çıkış/şifre s
 sonrası en fazla 15 dakika çalışmaya devam eder. Hesap silme istisna, çünkü `/me`
 claim'lere değil satıra bakıyor.
 
-### Faz 3 — RLS → Authorization  ⚠️ en kritik faz
-RLS artık veritabanında değil. Her sorgu sahiplik filtresi, her komut yetki kontrolü almalı.
+### Faz 3 — RLS → Authorization ✅
+Veritabanı seviyesindeki korumanın tamamı uygulama katmanına taşındı. Üç ayrı mekanizma,
+çünkü RLS'in yaptığı iş tek türden değildi.
 
-- `is_list_member` / `is_list_owner` / `can_view_list` → authorization servisi.
-- Kişisel tablolarda (`saved_media`, `watch_log`, `episode_progress`,
-  `recommendation_feedback`) EF global query filter ile `UserId == currentUser`.
-- Trigger'ların karşılığı: `lists.created_by` değişmez; `list_members` üzerinde yalnızca
-  kendi *pending* davetini bir kez accept/decline edebilirsin (`0003`'teki
-  `prevent_list_member_tampering` mantığı).
-- **Korunacak güvenlik davranışları** (regresyon riski yüksek):
-  - `invite_to_list`: "hesap yok" ile "zaten üye" **ayırt edilemez** olmalı — tek `invite_failed`
-    hatası (`0021_invite_enumeration_fix.sql`). Aksi halde e-posta enumeration açığı geri gelir.
-  - `find_user_id_by_email` dışarıya **açılmamalı** (`0022`).
-  - `get_list_watch_summary` yalnızca **agregat sayı** döner, tekil watch kaydı değil (`0017`).
+**Kişisel tablolar → EF global query filter.** `saved_media`, `watch_log`,
+`episode_progress`, `recommendation_feedback` üzerinde `UserId == CurrentUserId`.
+Handler'larda filtre yazılmıyor, EF ekliyor. Kimse giriş yapmamışsa hiçbir satır
+eşleşmiyor — sessizce kapanmak açık kalmaktan iyi. `verification_codes` ve
+`refresh_tokens` bilerek filtresiz: giriş sırasında, ortada kullanıcı yokken
+okunuyorlar. Tek meşru istisna paylaşımlı listedeki izleme sayacı, `IgnoreQueryFilters()`
+ile çağrı yerinde görünür kılınıyor.
+
+**Paylaşımlı listeler → `IListAccess` boğaz noktası.** Handler'lar `lists` tablosunu
+hiç sorgulamıyor; ihtiyaç duydukları erişimi isteyip yetkisizse `null` alıyorlar
+(`ForMemberAsync` / `ForOwnerAsync` / `ForViewerAsync` / `PollForMemberAsync`).
+Query filter kullanılamadı çünkü kurallar tabloya değil **işleme** göre değişiyor —
+içerik okumak kabul edilmiş üyelik ister, listenin adını görmek bekleyen davetliye de
+açıktır, silmek yalnızca kurucunundur — ve query filter'lar yazmayı hiç kapsamıyor.
+
+**Trigger'lar → `SaveChanges` içinde değişmezlik kontrolleri.** `lists.created_by`
+değişmez; `list_members` üzerinde liste/kullanıcı/rol değişmez ve durum yalnızca
+sabit bir yol izler: davet yanıtlanabilir, reddedilen davet yeniden gönderilebilir,
+katılmak nihaidir. Geçiş kuralı `ListMember` üzerinde, veritabanı olmadan test edilebilir.
+
+Supabase'deki trigger reddettiği için ulaşılamaz kalan **"reddedilmiş daveti yeniden
+gönderme"** yolu burada bilerek açıldı.
+
+⚠️ **Faz 4'te korunacak, regresyon riski yüksek davranışlar:**
+- `invite_to_list`: "hesap yok" ile "zaten üye" **ayırt edilemez** olmalı — tek `invite_failed`
+  hatası (`0021_invite_enumeration_fix.sql`). Aksi halde e-posta enumeration açığı geri gelir.
+- `find_user_id_by_email` dışarıya **açılmamalı** (`0022`).
+- `get_list_watch_summary` yalnızca **agregat sayı** döner, tekil watch kaydı değil (`0017`).
 
 ### Faz 4 — Endpoint'ler
 Feature bazlı dikey dilimler. RPC → endpoint eşlemesi:
