@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Movie.Infrastructure.Authentication;
 using Movie.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 
@@ -28,11 +29,18 @@ public sealed class PostgresFixture : IAsyncLifetime
         await context.Database.MigrateAsync();
     }
 
-    public MovieDbContext CreateContext() =>
-        new(new DbContextOptionsBuilder<MovieDbContext>()
-            .UseNpgsql(ConnectionString)
-            .UseSnakeCaseNamingConvention()
-            .Options);
+    /// <param name="actingAs">
+    /// Whose rows the context may see. Left out, it sees none of the
+    /// user-owned tables — which is the safe default, and what an
+    /// unauthenticated request gets.
+    /// </param>
+    public MovieDbContext CreateContext(Guid? actingAs = null) =>
+        new(
+            new DbContextOptionsBuilder<MovieDbContext>()
+                .UseNpgsql(ConnectionString)
+                .UseSnakeCaseNamingConvention()
+                .Options,
+            new StaticCurrentUser(actingAs));
 
     public async Task DisposeAsync() => await _container.DisposeAsync();
 }

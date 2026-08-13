@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Movie.Infrastructure.Authentication;
 
 namespace Movie.Infrastructure.Persistence;
 
@@ -24,6 +25,8 @@ public sealed class MovieDbContextFactory : IDesignTimeDbContextFactory<MovieDbC
             .UseSnakeCaseNamingConvention()
             .Options;
 
-        return new MovieDbContext(options);
+        // The tooling only reads and writes schema, never rows, so it has no
+        // user to act as.
+        return new MovieDbContext(options, StaticCurrentUser.Anonymous);
     }
 }

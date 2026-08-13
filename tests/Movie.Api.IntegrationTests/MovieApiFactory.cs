@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Movie.Application.Abstractions.Email;
+using Movie.Infrastructure.Authentication;
 using Movie.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 
@@ -49,11 +50,17 @@ public class MovieApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         await context.Database.MigrateAsync();
     }
 
-    public MovieDbContext CreateContext() =>
-        new(new DbContextOptionsBuilder<MovieDbContext>()
-            .UseNpgsql(_database.GetConnectionString())
-            .UseSnakeCaseNamingConvention()
-            .Options);
+    /// <param name="actingAs">
+    /// Whose rows the context may see. Left out, it sees none of the
+    /// user-owned tables.
+    /// </param>
+    public MovieDbContext CreateContext(Guid? actingAs = null) =>
+        new(
+            new DbContextOptionsBuilder<MovieDbContext>()
+                .UseNpgsql(_database.GetConnectionString())
+                .UseSnakeCaseNamingConvention()
+                .Options,
+            new StaticCurrentUser(actingAs));
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

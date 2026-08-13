@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
+using Movie.Application.Abstractions;
 using Movie.Application.Abstractions.Authentication;
 using Movie.Application.Abstractions.Email;
 using Movie.Domain.Users;
@@ -55,6 +56,10 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("Database")
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Database is not configured.");
+
+        // The ownership filters on the context read from this.
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 
         services.AddDbContext<MovieDbContext>(options => options
             .UseNpgsql(connectionString)
