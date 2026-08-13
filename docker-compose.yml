@@ -46,5 +46,21 @@ services:
     ports:
       - "5080:8080"
 
+  # Browsing the schema and its rows. It has no accounts of its own — you sign
+  # in with the Postgres credentials above — so this must never be published
+  # anywhere but a development machine.
+  adminer:
+    image: adminer:5
+    container_name: movie-adminer
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Skips the server field on the sign-in form and lands on this database.
+      ADMINER_DEFAULT_SERVER: db
+    ports:
+      - "8090:8080"
+
 volumes:
   movie-db-data:

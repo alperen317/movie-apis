@@ -117,7 +117,19 @@ docker compose up -d --build
 |---|---|
 | http://localhost:5080/scalar/v1 | API dokümantasyonu (Scalar) |
 | http://localhost:5080/openapi/v1.json | Ham OpenAPI belgesi |
+| http://localhost:8090 | Veritabanı arayüzü (Adminer) |
 | localhost:5435 | Postgres |
+
+Adminer'ın giriş formu varsayılan olarak MySQL'e ayarlı geliyor. Doğrudan
+PostgreSQL'e ayarlı ve alanları dolu açmak için:
+
+```
+http://localhost:8090/?pgsql=db&username=movie&db=movie
+```
+
+Şifre: `movie_dev_password`. Adminer'ın kendi hesabı yok, doğrudan Postgres
+kimlik bilgileriyle giriliyor — bu yüzden **yalnızca geliştirme makinesinde**
+çalıştırılmalı.
 
 Migration'lar geliştirmede uygulama açılışında uygulanıyor, ayrı bir adım gerekmiyor.
 
