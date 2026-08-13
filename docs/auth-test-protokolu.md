@@ -343,6 +343,40 @@ engelleyebilir.
 
 ---
 
+## Hata değil: access token iptal edilemez
+
+Test ederken şuna denk geleceksin ve bozukmuş gibi görünecek:
+
+- İki kez giriş yaparsın; **ilk access token hâlâ `200` döner**
+- Çıkış yaparsın; **aynı access token hâlâ `200` döner**
+
+İkisi de beklenen davranış. İki token temelden farklı çalışıyor:
+
+| | Access token | Refresh token |
+|---|---|---|
+| Nerede saklanıyor | Hiçbir yerde — kendi kendini taşıyor | `refresh_tokens` tablosunda satır |
+| Nasıl doğrulanıyor | İmza + son kullanma tarihi | Veritabanı sorgusu |
+| İptal edilebilir mi | **Hayır** | Evet |
+
+Access token bir JWT: sunucu onu doğrularken veritabanına hiç bakmıyor, imza
+tutuyor ve süresi dolmamışsa geçerli sayıyor. Onu geçersiz kılacak bir mekanizma
+yok. Aynı anda birden çok geçerli access token bulunması zaten istenen davranış —
+telefon ve tablet aynı anda açık olabilsin diye.
+
+Supabase'de de aynıydı: `signOut()` refresh token'ı iptal ediyor, JWT süresi
+dolana kadar çalışmaya devam ediyordu.
+
+**Pratikte ne anlama geliyor:** çıkış yapmak kalıcı erişimi keser (refresh token
+ölür), ama eldeki access token en fazla bir saat daha çalışır. Şifre sıfırlama
+kullanıcının tüm refresh token'larını iptal eder, yani aynı pencere orada da
+geçerli.
+
+Bu pencereyi kapatmak isteseydik iki yol vardı — access token ömrünü kısaltmak,
+ya da her istekte token'ı veritabanından doğrulamak. İkincisi JWT'nin stateless
+olma avantajını tümden götürdüğü için tercih edilmedi.
+
+---
+
 ## Temizlik
 
 Protokol bitince oluşturduğun hesapları silmek istersen:
