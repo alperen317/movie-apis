@@ -55,4 +55,18 @@ public interface IListAccess
     /// if the two share a list.
     /// </summary>
     Task<bool> SharesAListWithAsync(Guid otherUserId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// A membership the caller is allowed to delete, or null when there is no
+    /// such membership of theirs to reach.
+    /// </summary>
+    /// <remarks>
+    /// One method rather than two, because removing somebody and leaving of
+    /// your own accord are the same delete: the list's creator may remove
+    /// anyone, and anyone may remove themselves. Keeping both halves of that
+    /// rule in one place is what stops them drifting apart.
+    /// </remarks>
+    Task<ListMember?> MembershipToRemoveAsync(
+        Guid membershipId,
+        CancellationToken cancellationToken = default);
 }

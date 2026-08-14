@@ -71,6 +71,26 @@ public sealed class ListAccess(MovieDbContext database, ICurrentUser currentUser
             cancellationToken);
     }
 
+    public async Task<ListMember?> MembershipToRemoveAsync(
+        Guid membershipId,
+        CancellationToken cancellationToken = default)
+    {
+        if (currentUser.Id is not { } userId)
+        {
+            return null;
+        }
+
+        // The list comes along because the caller of this needs to know whether
+        // the membership being removed is the creator's own.
+        return await database.ListMembers
+            .Include(membership => membership.List)
+            .FirstOrDefaultAsync(
+                membership => membership.Id == membershipId
+                    && (membership.UserId == userId
+                        || membership.List!.CreatedById == userId),
+                cancellationToken);
+    }
+
     private async Task<MediaList?> FindAsync(
         Guid listId,
         MembershipRequirement requirement,

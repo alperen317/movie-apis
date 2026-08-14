@@ -9,7 +9,7 @@ alınan kararlar [MIGRATION.md](../MIGRATION.md) dosyasında.
 | 1 | Domain + EF Core şema | ✅ |
 | 2 | Kimlik doğrulama | ✅ |
 | 3 | RLS → Authorization | ✅ |
-| **4** | **Endpoint'ler** | 4a ✅ · sırada 4b |
+| **4** | **Endpoint'ler** | 4a ✅ 4b ✅ · sırada 4c |
 | 5 | SignalR | |
 | 6 | E-posta (Brevo) | |
 | 7 | Mobil istemci geçişi | |
@@ -62,9 +62,11 @@ Dikkat edilecekler:
   başlık izlenmiş görünmeye devam eder.
 - **Bölüm ilerlemesi upsert.** "Buraya kadar izledim" çok satırlı bir upsert olarak iniyor.
 
-### 4b · Listeler ve üyelik
+### 4b · Listeler ve üyelik ✅
 
 `IListAccess` üzerinden. Handler'lar `lists` tablosunu doğrudan sorgulamıyor.
+Uygulanırken alınan kararlar [MIGRATION.md](../MIGRATION.md#faz-4b--listeler-ve-üyelik-)
+altında.
 
 | RPC / çağrı | Endpoint | Erişim |
 |---|---|---|

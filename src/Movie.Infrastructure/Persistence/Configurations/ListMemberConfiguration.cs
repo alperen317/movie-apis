@@ -12,15 +12,27 @@ public sealed class ListMemberConfiguration : IEntityTypeConfiguration<ListMembe
 
         builder.HasKey(x => x.Id);
 
+        // ValueGeneratedNever, or EF leaves the column out of the INSERT
+        // whenever the property holds its CLR default, and the database default
+        // wins instead. MemberRole.Owner *is* that CLR default — it comes first
+        // in the enum — so a creator's own membership was being written as a
+        // plain member. The column defaults stay for anything that reaches the
+        // table outside EF; what changes is that the value the model holds is
+        // always the value that gets written.
         builder.Property(x => x.Role)
             .HasLowerCaseStringConversion()
             .HasMaxLength(10)
-            .HasDefaultValue(MemberRole.Member);
+            .HasDefaultValue(MemberRole.Member)
+            .ValueGeneratedNever();
 
+        // Pending happens to agree with the CLR default, so this one was never
+        // wrong. Spelled out the same way regardless: the two lining up is a
+        // coincidence of the enum's order, not something to have to check.
         builder.Property(x => x.Status)
             .HasLowerCaseStringConversion()
             .HasMaxLength(10)
-            .HasDefaultValue(MemberStatus.Pending);
+            .HasDefaultValue(MemberStatus.Pending)
+            .ValueGeneratedNever();
 
         builder.Property(x => x.InvitedById).HasColumnName("invited_by");
 

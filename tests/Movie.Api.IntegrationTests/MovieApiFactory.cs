@@ -79,10 +79,21 @@ public class MovieApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", tokens!.AccessToken);
 
-        return new SignedInUser(client, email);
+        var profile = await client.GetFromJsonAsync<SignedInProfile>("/me");
+
+        return new SignedInUser(client, email) { Id = profile!.Id };
     }
 
-    public sealed record SignedInUser(HttpClient Client, string Email);
+    /// <remarks>
+    /// The id is a property rather than a fourth positional member, so tests
+    /// that only want the client and the address keep deconstructing into two.
+    /// </remarks>
+    public sealed record SignedInUser(HttpClient Client, string Email)
+    {
+        public required Guid Id { get; init; }
+    }
+
+    private sealed record SignedInProfile(Guid Id);
 
     private sealed record IssuedTokens(string AccessToken, DateTime ExpiresAt, string RefreshToken);
 

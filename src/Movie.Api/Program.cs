@@ -49,6 +49,7 @@ app.MapSavedMediaEndpoints();
 app.MapWatchLogEndpoints();
 app.MapEpisodeProgressEndpoints();
 app.MapRecommendationFeedbackEndpoints();
+app.MapListEndpoints();
 
 app.Run();
 

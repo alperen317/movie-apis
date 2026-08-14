@@ -146,6 +146,33 @@ yerel durumunun geride kaldığını yine de öğrenmesini sağlıyor.
 **Toplu uçlarda üst sınır var**: 500 başlık, 2000 bölüm. Aşan istek kırpılmıyor,
 reddediliyor — yarım uygulanmış bir içe aktarma, başarısız olandan kötüdür.
 
+#### Faz 4b — Listeler ve üyelik ✅
+10 uç. Yetkilendirme `IListAccess`'te kalıyor; veri işini yapan yeni `IListStore`'un
+tek liste işleyen her metodu **`MediaList`'in kendisini alıyor, id değil** — o nesneyi
+elde etmenin tek yolu `IListAccess`'ten geçtiği için, onu geçirmek kontrolün yapıldığının
+kanıtı oluyor. Id alsalardı, handler görünürlüğünü hiç saptamadığı bir listeye uzanabilirdi.
+
+**Yetkisiz her durumda 404, 403 değil.** Ayrı bir "yasak" yanıtı, listenin var olduğunu
+onunla hiç ilgisi olmayan birine doğrulardı.
+
+**Supabase'e göre bilinçli farklar:**
+- **Katılım kodu yalnızca kabul etmiş üyeye dönüyor.** `lists` üzerindeki satır politikası
+  hangi satırın okunabileceğini söyleyebiliyordu ama hangi *kolonun* değil, bu yüzden kod
+  bekleyen davetliye de gidiyordu. Kodu bilmek daveti tamamen atlayıp anında üye olmak
+  demek (Faz 1'de bu yüzden kriptografik üretece geçmişti); davet kartının ise yalnızca
+  isme ihtiyacı var.
+- **Kurucu kendi listesinden ayrılamaz** (409). Sahiplik `lists.created_by`'dan okunuyor,
+  üyelik satırından değil; ayrılan kurucu listeyi silebilen tek kişi olmaya devam ederken
+  içeriğini okuyamaz hale gelirdi. Çıkış yolu listeyi silmek.
+- **Zaten ekli bir başlığı eklemek hata değil**, mevcut satır dönüyor — 4a'daki ile aynı
+  gerekçe, artı çağıranın soracağı bir sonraki soruyu (kim ekledi) da yanıtlıyor.
+
+**Yol boyunca bulunan hata:** `list_members.role` kolonunda `HasDefaultValue(Member)` vardı
+ve `MemberRole.Owner` enum'da ilk sırada, yani CLR varsayılanı. EF, özellik CLR varsayılanını
+tuttuğunda kolonu INSERT'ten çıkarıyor; sonuç olarak **kurucunun üyelik satırı `member`
+olarak yazılıyordu**. `ValueGeneratedNever()` eklendi; şema değişmedi, migration gerekmedi.
+Faz 3 testleri bunu yakalamamıştı çünkü sahiplik zaten rol satırından okunmuyor.
+
 RPC → endpoint eşlemesi (kalan alt adımlar):
 
 | RPC | Endpoint |

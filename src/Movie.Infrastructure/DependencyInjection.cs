@@ -115,6 +115,7 @@ public static class DependencyInjection
         // The only route to a shared list. See IListAccess for why handlers do
         // not query `lists` themselves.
         services.AddScoped<IListAccess, ListAccess>();
+        services.AddScoped<IListStore, ListStore>();
 
         // The caller's own content. Registered next to the list access for the
         // same reason: these are the only paths to those tables, and each one
