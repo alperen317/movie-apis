@@ -87,4 +87,36 @@ public interface IListStore
         int mediaId,
         MediaType mediaType,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// How many of a list's members have already seen each of its titles.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one place in the application that reads other people's watch log,
+    /// and the only reason the ownership filter on that table has an exception
+    /// at all. It exists because "three of us have seen this" is what a group
+    /// deciding what to watch actually wants to know.
+    /// </para>
+    /// <para>
+    /// <strong>Counts only.</strong> Never a row, never a date, never a rating
+    /// or a note. A member's own history stays theirs; what a co-member learns
+    /// is a number. The Supabase function was written under exactly this
+    /// constraint and said so, which is why it returned an aggregate and not
+    /// the rows it aggregated.
+    /// </para>
+    /// <para>
+    /// Titles nobody has seen are absent rather than reported as zero, which is
+    /// what the client already assumes for a key it does not find.
+    /// </para>
+    /// </remarks>
+    Task<IReadOnlyList<WatchedCount>> WatchSummaryAsync(
+        MediaList list,
+        CancellationToken cancellationToken = default);
 }
+
+/// <param name="Count">
+/// Distinct members, not entries — somebody who rewatched a film four times has
+/// still seen it once as far as the group is concerned.
+/// </param>
+public sealed record WatchedCount(int MediaId, MediaType MediaType, int Count);

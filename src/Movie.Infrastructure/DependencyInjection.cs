@@ -117,6 +117,7 @@ public static class DependencyInjection
         services.AddScoped<IListAccess, ListAccess>();
         services.AddScoped<IListStore, ListStore>();
         services.AddScoped<IInvitationStore, InvitationStore>();
+        services.AddScoped<IPollStore, PollStore>();
 
         // The caller's own content. Registered next to the list access for the
         // same reason: these are the only paths to those tables, and each one

@@ -175,6 +175,39 @@ public sealed class ListStore(MovieDbContext database, ICurrentUser currentUser)
                 && item.MediaType == mediaType)
             .ExecuteDeleteAsync(cancellationToken) > 0;
 
+    public async Task<IReadOnlyList<WatchedCount>> WatchSummaryAsync(
+        MediaList list,
+        CancellationToken cancellationToken = default) =>
+
+        // IgnoreQueryFilters at the root, which lifts them for the whole query.
+        // The only filtered table involved is the watch log, and lifting it is
+        // the single exception the ownership rule has — declared here, at the
+        // one call site that needs it, rather than left vague on the rule.
+        await database.ListItems
+            .IgnoreQueryFilters()
+            .Where(item => item.ListId == list.Id)
+            .SelectMany(item => database.WatchLog
+                .Where(entry => entry.MediaId == item.MediaId
+                    && entry.MediaType == item.MediaType
+
+                    // Only people actually on the list count. Without this a
+                    // stranger's viewing would be reported to its members.
+                    && database.ListMembers.Any(membership =>
+                        membership.ListId == list.Id
+                        && membership.UserId == entry.UserId
+                        && membership.Status == MemberStatus.Accepted))
+
+                // Nothing but the pairing leaves the database. No date, no
+                // rating, no note — see IListStore.WatchSummaryAsync.
+                .Select(entry => new { item.MediaId, item.MediaType, entry.UserId }))
+            .Distinct()
+            .GroupBy(watched => new { watched.MediaId, watched.MediaType })
+            .Select(group => new WatchedCount(
+                group.Key.MediaId,
+                group.Key.MediaType,
+                group.Count()))
+            .ToListAsync(cancellationToken);
+
     /// <summary>
     /// Re-read so the adder's profile comes with it, which is what the members
     /// badge on the item is drawn from.

@@ -9,8 +9,8 @@ alınan kararlar [MIGRATION.md](../MIGRATION.md) dosyasında.
 | 1 | Domain + EF Core şema | ✅ |
 | 2 | Kimlik doğrulama | ✅ |
 | 3 | RLS → Authorization | ✅ |
-| **4** | **Endpoint'ler** | 4a ✅ 4b ✅ 4c ✅ · sırada 4d |
-| 5 | SignalR | |
+| 4 | Endpoint'ler | ✅ |
+| **5** | **SignalR** | sırada |
 | 6 | E-posta (Brevo) | |
 | 7 | Mobil istemci geçişi | |
 | 8 | Dağıtım | |
@@ -127,33 +127,16 @@ Ayrıca:
   yüzünden ulaşılamazdı).
 - Davet e-postası Faz 6'ya kadar loglanacak.
 
-### 4d · Anketler
+### 4d · Anketler ✅
 
-| RPC | Endpoint |
-|---|---|
-| `get_list_poll` | `GET /lists/{id}/poll` |
-| `start_list_poll` | `POST /lists/{id}/polls` |
-| `cast_poll_vote` | `POST /polls/{id}/votes` |
+Uygulanırken alınan kararlar [MIGRATION.md](../MIGRATION.md#faz-4d--anketler-) altında —
+orijinal SQL'de bir açık bulundu ve düzeltildi (aday, aday gösterildiği listeye ait
+olmalı, hiç doğrulanmıyordu).
 
-Kurallar:
+### 4e · İzleme özeti ✅
 
-- En az 2 aday, bitiş zamanı gelecekte olmalı
-- **Liste başına aynı anda tek aktif anket**
-- Anketin kapalı olduğu saklanmıyor; `Deadline` geçtiyse kapalı. Oy verilirken kontrol
-  ediliyor, arka plan işi yok
-- Kişi başına anket başına tek oy; fikir değiştirmek yeni satır değil güncelleme
-- `GET` en son anketi döner (aktif ya da yeni kapanmış), aday başına oy sayısı ve
-  çağıranın oyuyla birlikte
-
-### 4e · İzleme özeti ⚠️
-
-`get_list_watch_summary` → `GET /lists/{id}/watch-summary`
-
-Faz 3'te tanımlanan tek meşru çapraz kullanıcı okuması. `IgnoreQueryFilters()` burada
-kullanılacak.
-
-**Yalnızca içerik başına sayı dönmeli**, tekil kayıt asla. `0017`'nin yorumu bunu açıkça
-söylüyor: üyenin kişisel izleme geçmişi, puanı ve notu co-member'lardan gizli kalmalı.
+Faz 3'te tanımlanan tek meşru çapraz kullanıcı okuması. Uygulanırken alınan kararlar
+[MIGRATION.md](../MIGRATION.md#faz-4e--i̇zleme-özeti-) altında.
 
 ---
 
@@ -228,8 +211,8 @@ Ayrıca: kod geçerlilik süresi ekranında geri sayım düşünülebilir (kod 1
 
 ---
 
-## Faz 4'e başlarken
+## Faz 5'e başlarken
 
-Önerilen sıra 4a → 4b → 4c → 4d → 4e. Gerekçe: 4a en izole olan ve Faz 3'ün query
-filter'ları sayesinde neredeyse kendiliğinden güvenli; 4c ise geri gelmesi en kolay
-güvenlik açıklarını içeriyor ve ondan önce liste altyapısının oturmuş olması gerekiyor.
+`ListHub`in gruplarına katılmadan önce yetki kontrolü `IListAccess.ForMemberAsync` üzerinden
+yapılacak — Faz 4'te yazılan store'lar ve erişim boğaz noktaları burada yeniden kullanılıyor,
+tekrar icat edilmiyor.

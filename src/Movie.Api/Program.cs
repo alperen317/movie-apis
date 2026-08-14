@@ -59,6 +59,7 @@ app.MapEpisodeProgressEndpoints();
 app.MapRecommendationFeedbackEndpoints();
 app.MapListEndpoints();
 app.MapInvitationEndpoints();
+app.MapPollEndpoints();
 
 app.Run();
 

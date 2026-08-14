@@ -202,6 +202,31 @@ kimse davet etmedi, `invited_by` boş.
 Sıra düzeltildi. Token'ı burada okumak aynı zamanda claim'in doğrulanmış olmasını sağlıyor —
 aksi halde çağıran `sub`'ı değiştirip kendi bütçesini tazeleyebilirdi.
 
+#### Faz 4d — Anketler ✅
+3 uç. Anketin kapalı olduğu hiçbir yerde saklanmıyor — `Deadline` geçtiyse kapalı; bu yüzden
+kapatan bir arka plan işi yok, kontrol yalnızca oy verilirken yapılıyor.
+
+**Yol boyunca bulunan hata:** `start_list_poll`, aday olarak verilen `list_item_id`'lerin
+**o listeye ait olduğunu hiç doğrulamıyordu** — FK yalnızca satırın bir yerde var olduğunu
+garanti ediyor. İki listeye birden üye olan biri, B listesinin bir içeriğini A'nın anketine
+aday koyabilirdi. `.NET` tarafı adayları listenin kendi `list_items`'ı ile kesişim alarak
+doğruluyor; uymayan istek `invalid_candidate` ile reddediliyor.
+
+Ayrıca: aynı öğeyi iki kez aday göstermek iki aday saymıyor (`Distinct()` sonra sayılıyor),
+oy `candidate_id`'nin gerçekten bu ankete ait olduğu kontrol edilerek kabul ediliyor —
+başka bir anketin aday id'si burada geçmiyor.
+
+#### Faz 4e — İzleme özeti ✅
+1 uç, `GET /lists/{id}/watch-summary`. Faz 3'te tanımlanan tek meşru çapraz kullanıcı okuması;
+`IgnoreQueryFilters()` tam olarak bu tek çağrı noktasında kullanılıyor.
+
+**Yalnızca içerik başına sayı dönüyor**, tekil kayıt asla — `0017`'nin yorumunun söylediği
+gibi. Sorgu `watch_log`'dan yalnızca `(media_id, media_type, user_id)` üçlüsünü seçiyor;
+tarih, puan, not asla sorgunun dışına çıkmıyor. Sayı **kişi başına bir**, kayıt başına değil
+— aynı filmi dört kez izleyen biri grup için bir kişi sayılıyor (`Distinct()` + `GroupBy`).
+Üyelikten ayrılan birinin geçmiş izlemesi artık sayılmıyor, çünkü üyelik okuma anında
+kontrol ediliyor, satıra o yazıldığında damgalanmıyor.
+
 RPC → endpoint eşlemesi (kalan alt adımlar):
 
 | RPC | Endpoint |
