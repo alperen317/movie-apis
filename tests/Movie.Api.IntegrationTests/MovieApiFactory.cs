@@ -1,3 +1,5 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -28,6 +30,9 @@ public class MovieApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>Only needs to clear the 32-byte floor HMAC-SHA256 requires.</summary>
     public const string SigningKey = "integration-test-signing-key-0123456789";
 
+    /// <summary>What <see cref="SignedInAsync"/> registers accounts with.</summary>
+    public const string DefaultPassword = "correct horse battery";
+
     private readonly PostgreSqlContainer _database =
         new PostgreSqlBuilder("postgres:17-alpine").Build();
 
@@ -49,6 +54,37 @@ public class MovieApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         await using var context = CreateContext();
         await context.Database.MigrateAsync();
     }
+
+    /// <summary>
+    /// A client holding a bearer token for a brand new, verified account.
+    /// </summary>
+    /// <remarks>
+    /// Goes through register and verify rather than writing the rows, so what
+    /// the tests are handed is a token the application itself issued. A fresh
+    /// account each time keeps one test's content out of another's.
+    /// </remarks>
+    public async Task<SignedInUser> SignedInAsync()
+    {
+        var setup = CreateClient();
+        var email = $"{Guid.NewGuid():N}@example.com";
+
+        await setup.PostAsJsonAsync("/auth/register", new { email, password = DefaultPassword });
+        var verified = await setup.PostAsJsonAsync(
+            "/auth/verify-email",
+            new { email, code = Emails.CodeSentTo(email) });
+
+        var tokens = await verified.Content.ReadFromJsonAsync<IssuedTokens>();
+
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", tokens!.AccessToken);
+
+        return new SignedInUser(client, email);
+    }
+
+    public sealed record SignedInUser(HttpClient Client, string Email);
+
+    private sealed record IssuedTokens(string AccessToken, DateTime ExpiresAt, string RefreshToken);
 
     /// <param name="actingAs">
     /// Whose rows the context may see. Left out, it sees none of the

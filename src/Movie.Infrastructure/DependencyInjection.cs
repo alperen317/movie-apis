@@ -10,10 +10,12 @@ using Microsoft.IdentityModel.Tokens;
 using Movie.Application.Abstractions;
 using Movie.Application.Abstractions.Authentication;
 using Movie.Application.Abstractions.Email;
+using Movie.Application.Abstractions.Library;
 using Movie.Application.Abstractions.Lists;
 using Movie.Domain.Users;
 using Movie.Infrastructure.Authentication;
 using Movie.Infrastructure.Email;
+using Movie.Infrastructure.Library;
 using Movie.Infrastructure.Lists;
 using Movie.Infrastructure.Persistence;
 
@@ -113,6 +115,14 @@ public static class DependencyInjection
         // The only route to a shared list. See IListAccess for why handlers do
         // not query `lists` themselves.
         services.AddScoped<IListAccess, ListAccess>();
+
+        // The caller's own content. Registered next to the list access for the
+        // same reason: these are the only paths to those tables, and each one
+        // resolves the owner itself rather than being handed one.
+        services.AddScoped<ISavedMediaStore, SavedMediaStore>();
+        services.AddScoped<IWatchLogStore, WatchLogStore>();
+        services.AddScoped<IEpisodeProgressStore, EpisodeProgressStore>();
+        services.AddScoped<IRecommendationFeedbackStore, RecommendationFeedbackStore>();
     }
 
     private static void AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)

@@ -9,7 +9,7 @@ alınan kararlar [MIGRATION.md](../MIGRATION.md) dosyasında.
 | 1 | Domain + EF Core şema | ✅ |
 | 2 | Kimlik doğrulama | ✅ |
 | 3 | RLS → Authorization | ✅ |
-| **4** | **Endpoint'ler** | sırada |
+| **4** | **Endpoint'ler** | 4a ✅ · sırada 4b |
 | 5 | SignalR | |
 | 6 | E-posta (Brevo) | |
 | 7 | Mobil istemci geçişi | |
@@ -23,10 +23,11 @@ Mobil istemcinin `lib/supabase/*` altındaki her çağrısının bir karşılı�
 Beş alt adıma bölünüyor; sıralama bilinçli: kolay ve izole olanlar önce, güvenlik
 açısından hassas olanlar sonra.
 
-### 4a · Kişisel içerik
+### 4a · Kişisel içerik ✅
 
 Faz 3'ün query filter'ları sahipliği zaten hallettiği için bu uçlar en basit olanlar.
-Handler'lar filtre yazmıyor.
+Handler'lar filtre yazmıyor. Uygulanırken alınan kararlar
+[MIGRATION.md](../MIGRATION.md#faz-4a--kişisel-içerik-) altında.
 
 | Kaynak (`lib/supabase/`) | Endpoint |
 |---|---|

@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
@@ -8,7 +7,7 @@ namespace Movie.Api.IntegrationTests;
 
 public sealed class AccountTests(MovieApiFactory factory) : IClassFixture<MovieApiFactory>
 {
-    private const string Password = "correct horse battery";
+    private const string Password = MovieApiFactory.DefaultPassword;
 
     [Fact]
     public async Task The_profile_comes_back_with_its_defaults()
@@ -149,22 +148,7 @@ public sealed class AccountTests(MovieApiFactory factory) : IClassFixture<MovieA
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
-    private async Task<(HttpClient Client, string Email)> SignedInAsync()
-    {
-        var setup = factory.CreateClient();
-        var email = $"{Guid.NewGuid():N}@example.com";
-
-        await setup.PostAsJsonAsync("/auth/register", new { email, password = Password });
-        var code = factory.Emails.CodeSentTo(email);
-        var verified = await setup.PostAsJsonAsync("/auth/verify-email", new { email, code });
-        var tokens = await verified.Content.ReadFromJsonAsync<TokenResponse>();
-
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", tokens!.AccessToken);
-
-        return (client, email);
-    }
+    private Task<MovieApiFactory.SignedInUser> SignedInAsync() => factory.SignedInAsync();
 
     private sealed record Profile(
         Guid Id,
@@ -173,6 +157,4 @@ public sealed class AccountTests(MovieApiFactory factory) : IClassFixture<MovieA
         string AvatarVariant,
         string? AvatarSeed,
         string? WatchRegion);
-
-    private sealed record TokenResponse(string AccessToken, DateTime ExpiresAt, string RefreshToken);
 }

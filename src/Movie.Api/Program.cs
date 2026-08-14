@@ -45,6 +45,10 @@ app.UseAuthorization();
 
 app.MapAuthEndpoints();
 app.MapMeEndpoints();
+app.MapSavedMediaEndpoints();
+app.MapWatchLogEndpoints();
+app.MapEpisodeProgressEndpoints();
+app.MapRecommendationFeedbackEndpoints();
 
 app.Run();
 

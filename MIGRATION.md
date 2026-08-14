@@ -116,7 +116,37 @@ gönderme"** yolu burada bilerek açıldı.
 - `get_list_watch_summary` yalnızca **agregat sayı** döner, tekil watch kaydı değil (`0017`).
 
 ### Faz 4 — Endpoint'ler
-Feature bazlı dikey dilimler. RPC → endpoint eşlemesi:
+Feature bazlı dikey dilimler. Alt adımlara bölünüşü ve kalan işin ayrıntısı
+[docs/plan.md](docs/plan.md) dosyasında.
+
+#### Faz 4a — Kişisel içerik ✅
+16 uç: `saved-media`, `watch-log`, `episode-progress`, `recommendation-feedback`.
+Faz 3'ün query filter'ları sahipliği zaten hallettiği için handler'lar filtre yazmıyor.
+
+**Store'lar kullanıcı kimliği almıyor.** `ISavedMediaStore`, `IWatchLogStore`,
+`IEpisodeProgressStore`, `IRecommendationFeedbackStore` — `IListAccess` ile aynı gerekçe:
+çağıranı kendileri çözüyorlar, dolayısıyla bir handler'ın başkası adına satır yazması
+mümkün değil. `Movie.Application` EF Core'a bağlı kalmıyor.
+
+**Çakışma bir hata değil.** Zaten kayıtlı bir başlığı kaydetmek, zaten gizlenmiş bir
+başlığı gizlemek, zaten işaretli bir bölümü işaretlemek — hepsi başarıyla dönüyor,
+çünkü çağıranın istediği sonuç hâlihazırda geçerli. Kararı veritabanına bırakmak
+(önce kontrol etmek yerine) yarışa kapalı olmasını sağlıyor. Yanıttaki sayı, istemcinin
+yerel durumunun geride kaldığını yine de öğrenmesini sağlıyor.
+
+**Supabase'e göre bilinçli farklar:**
+- Tekil `POST /saved-media` çakışmada 409 değil 200 dönüyor. Uç "bu kayıtlı olsun"
+  demek; iki cihazdan aynı anda favorilere eklemek hata üretmemeli.
+- Saat dilimi taşımayan zaman damgası **reddediliyor** (400). `timestamptz` bir an
+  saklıyor; `2024-01-01T20:00:00` bir an belirtmiyor. UTC varsaymak, UTC'de olmayan
+  herkesin günlüğünü saatlerce kaydırırdı.
+- Enum'lar route/query'de büyük-küçük harf duyarsız okunuyor. Gövdedeki JSON zaten
+  öyleydi; minimal API'nin route binding'i değildi ve `favorite` yazımını reddediyordu.
+
+**Toplu uçlarda üst sınır var**: 500 başlık, 2000 bölüm. Aşan istek kırpılmıyor,
+reddediliyor — yarım uygulanmış bir içe aktarma, başarısız olandan kötüdür.
+
+RPC → endpoint eşlemesi (kalan alt adımlar):
 
 | RPC | Endpoint |
 |---|---|
@@ -129,9 +159,6 @@ Feature bazlı dikey dilimler. RPC → endpoint eşlemesi:
 | `get_list_poll` | `GET /lists/{id}/poll` |
 | `get_list_watch_summary` | `GET /lists/{id}/watch-summary` |
 | `delete_account` | `DELETE /me` — *Faz 2'de yapıldı* |
-
-Ayrıca kişisel içerik uçları: `saved_media`, `watch_log`, `episode_progress`,
-`recommendation_feedback` için CRUD ve importer'ın kullandığı toplu ekleme.
 
 Rate limit (`0012`, `0014`: 10 dakikada 20 deneme) → ASP.NET Core rate limiting middleware.
 
