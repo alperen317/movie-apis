@@ -91,6 +91,22 @@ public sealed class ListAccess(MovieDbContext database, ICurrentUser currentUser
                 cancellationToken);
     }
 
+    public async Task<ListMember?> MyInvitationAsync(
+        Guid membershipId,
+        CancellationToken cancellationToken = default)
+    {
+        if (currentUser.Id is not { } userId)
+        {
+            return null;
+        }
+
+        return await database.ListMembers.FirstOrDefaultAsync(
+            membership => membership.Id == membershipId
+                && membership.UserId == userId
+                && membership.Status == MemberStatus.Pending,
+            cancellationToken);
+    }
+
     private async Task<MediaList?> FindAsync(
         Guid listId,
         MembershipRequirement requirement,

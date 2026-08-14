@@ -116,6 +116,7 @@ public static class DependencyInjection
         // not query `lists` themselves.
         services.AddScoped<IListAccess, ListAccess>();
         services.AddScoped<IListStore, ListStore>();
+        services.AddScoped<IInvitationStore, InvitationStore>();
 
         // The caller's own content. Registered next to the list access for the
         // same reason: these are the only paths to those tables, and each one

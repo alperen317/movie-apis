@@ -173,6 +173,35 @@ tuttuğunda kolonu INSERT'ten çıkarıyor; sonuç olarak **kurucunun üyelik sa
 olarak yazılıyordu**. `ValueGeneratedNever()` eklendi; şema değişmedi, migration gerekmedi.
 Faz 3 testleri bunu yakalamamıştı çünkü sahiplik zaten rol satırından okunmuyor.
 
+#### Faz 4c — Davetler ve kodla katılma ✅
+5 uç. Faz 3'te ⚠️ ile işaretlenen üç davranışın hepsi korundu:
+
+- **`invite_failed` tek yanıt.** "Bu adresin hesabı yok", "zaten davetli" ve "zaten üye"
+  aynı durum kodu ve **bayt bayt aynı gövde** ile dönüyor. Testler bunu ayrı ayrı iki kez
+  doğruluyor: farklı olan tek şey bile adresleri kayıtlı/kayıtsız diye ayırmaya yeter.
+  `cannot_invite_self` ayrı kaldı — yalnızca çağıranın kendi adresi için tetikleniyor.
+- **E-postadan kullanıcı bulma dışarı açılmadı.** Arama `IInvitationStore.InviteAsync`'in
+  içinde kalıyor ve cevabı metottan çıkmıyor; o soruyu yanıtlayan bir metot yok.
+- **Rate limit**: davet ve kodla katılma için 10 dakikada 20 deneme.
+
+**Rate limit hesap bazlı, IP bazlı değil.** Supabase de `auth.uid()` sayıyordu. IP saymak
+hem saldırganı az kısıtlar (adres değiştirmek ucuz) hem masumu çok kısıtlar (NAT arkasındaki
+herkes tek bütçeyi paylaşır). **Başarısız denemeler de sayılıyor** — başarısız bir yoklama
+bedava olsaydı sınır, var olma sebebi olan taramayı sınırlamazdı.
+
+**Kodla katılma reddedilmiş üyeliği siliyor, güncellemiyor.** `join_list_by_code` orijinalinde
+`declined`'ı doğrudan `accepted` yapıyordu; Faz 3'ün geçiş kuralı ise bunu reddediyor ve
+haklı — kendi reddini üyeliğe çevirmek tam da o kuralın engellediği şey. Ama kodla katılmada
+yetki **kodun kendisi**, cevaplanmamış bir davet değil. Bu yüzden satır silinip yenisi
+yazılıyor (tek transaction, iki `SaveChanges`; aynı `(list, user)` çiftinin silme ve eklemesi
+tek batch'te tekillik indeksiyle yarışırdı). Kural olduğu gibi sıkı kalıyor, kayıt da dürüst:
+kimse davet etmedi, `invited_by` boş.
+
+**Yol boyunca bulunan hata:** `UseRateLimiter()` `UseAuthentication()`'dan **önce**
+çalışıyordu, dolayısıyla `context.User` boştu ve hesap bazlı sayım sessizce IP'ye düşüyordu.
+Sıra düzeltildi. Token'ı burada okumak aynı zamanda claim'in doğrulanmış olmasını sağlıyor —
+aksi halde çağıran `sub`'ı değiştirip kendi bütçesini tazeleyebilirdi.
+
 RPC → endpoint eşlemesi (kalan alt adımlar):
 
 | RPC | Endpoint |

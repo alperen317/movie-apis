@@ -47,6 +47,10 @@ public class MovieApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     protected virtual int CredentialSubmissionPermitLimit => 1000;
 
+    protected virtual int ListInvitationPermitLimit => 1000;
+
+    protected virtual int JoinAttemptPermitLimit => 1000;
+
     public async Task InitializeAsync()
     {
         await _database.StartAsync();
@@ -126,6 +130,12 @@ public class MovieApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting(
             "RateLimiting:CredentialSubmissionPermitLimit",
             CredentialSubmissionPermitLimit.ToString());
+        builder.UseSetting(
+            "RateLimiting:ListInvitationPermitLimit",
+            ListInvitationPermitLimit.ToString());
+        builder.UseSetting(
+            "RateLimiting:JoinAttemptPermitLimit",
+            JoinAttemptPermitLimit.ToString());
 
         builder.ConfigureTestServices(services =>
             services.Replace(ServiceDescriptor.Scoped<IEmailSender>(_ => Emails)));

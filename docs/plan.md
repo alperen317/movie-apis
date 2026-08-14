@@ -9,7 +9,7 @@ alınan kararlar [MIGRATION.md](../MIGRATION.md) dosyasında.
 | 1 | Domain + EF Core şema | ✅ |
 | 2 | Kimlik doğrulama | ✅ |
 | 3 | RLS → Authorization | ✅ |
-| **4** | **Endpoint'ler** | 4a ✅ 4b ✅ · sırada 4c |
+| **4** | **Endpoint'ler** | 4a ✅ 4b ✅ 4c ✅ · sırada 4d |
 | 5 | SignalR | |
 | 6 | E-posta (Brevo) | |
 | 7 | Mobil istemci geçişi | |
@@ -92,10 +92,11 @@ Dikkat edilecekler:
 - **`fetchMyLists` `list_members` üzerinden sorguluyordu, `lists` üzerinden değil** — çünkü
   `lists` görünürlüğü bekleyen davetleri de kapsıyor ve ikisi karışmamalı.
 
-### 4c · Davetler ve kodla katılma ⚠️
+### 4c · Davetler ve kodla katılma ✅
 
 Faz 4'ün güvenlik açısından en hassas kısmı. Üç davranış migration yorumlarında açıkça
-"bu bir güvenlik düzeltmesiydi" diye işaretlenmiş.
+"bu bir güvenlik düzeltmesiydi" diye işaretlenmiş — üçü de korundu; ayrıntı
+[MIGRATION.md](../MIGRATION.md#faz-4c--davetler-ve-kodla-katılma-) altında.
 
 | RPC | Endpoint |
 |---|---|

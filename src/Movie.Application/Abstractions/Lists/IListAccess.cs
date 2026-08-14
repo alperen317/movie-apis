@@ -69,4 +69,16 @@ public interface IListAccess
     Task<ListMember?> MembershipToRemoveAsync(
         Guid membershipId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// An invitation waiting for the caller's own answer, or null.
+    /// </summary>
+    /// <remarks>
+    /// The caller's own and still unanswered. Not the whole roster: an accepted
+    /// member can see who else has yet to reply, and without this narrowing
+    /// they could answer on those people's behalf.
+    /// </remarks>
+    Task<ListMember?> MyInvitationAsync(
+        Guid membershipId,
+        CancellationToken cancellationToken = default);
 }

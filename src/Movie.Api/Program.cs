@@ -39,8 +39,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseRateLimiter();
 app.UseAuthentication();
+
+// After authentication, because the invitation and join limits count the
+// signed-in account rather than the host, and before this runs there is no
+// account to count — the partition would quietly fall back to an address, and
+// the limit would be the wrong limit rather than a missing one. Reading the
+// token here rather than earlier also means the claim has been verified, so it
+// is not something a caller can set to refill their own budget.
+app.UseRateLimiter();
+
 app.UseAuthorization();
 
 app.MapAuthEndpoints();
@@ -50,6 +58,7 @@ app.MapWatchLogEndpoints();
 app.MapEpisodeProgressEndpoints();
 app.MapRecommendationFeedbackEndpoints();
 app.MapListEndpoints();
+app.MapInvitationEndpoints();
 
 app.Run();
 

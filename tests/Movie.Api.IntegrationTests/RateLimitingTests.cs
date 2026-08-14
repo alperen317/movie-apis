@@ -13,6 +13,17 @@ public sealed class ThrottledApiFactory : MovieApiFactory
     protected override int EmailDispatchPermitLimit => 2;
 }
 
+/// <summary>
+/// Separate from <see cref="ThrottledApiFactory"/> because that one squeezes
+/// sign-ups, and these tests need to be able to create the accounts they use.
+/// </summary>
+public sealed class ThrottledListApiFactory : MovieApiFactory
+{
+    protected override int ListInvitationPermitLimit => 2;
+
+    protected override int JoinAttemptPermitLimit => 2;
+}
+
 public sealed class RateLimitingTests(ThrottledApiFactory factory) : IClassFixture<ThrottledApiFactory>
 {
     [Fact]
