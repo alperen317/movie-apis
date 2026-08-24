@@ -88,11 +88,15 @@ public sealed class InvitationStore(
     }
 
     /// <summary>
-    /// Fills in the invited person's profile, which the roster entry the caller
-    /// gets back is drawn from.
+    /// Fills in the invited person's profile — the roster entry the caller
+    /// gets back is drawn from it — and the inviter's, which the invite email
+    /// needs for its "so-and-so invited you" line.
     /// </summary>
-    private Task WithProfileAsync(ListMember membership, CancellationToken cancellationToken) =>
-        database.Entry(membership).Reference(x => x.User).LoadAsync(cancellationToken);
+    private async Task WithProfileAsync(ListMember membership, CancellationToken cancellationToken)
+    {
+        await database.Entry(membership).Reference(x => x.User).LoadAsync(cancellationToken);
+        await database.Entry(membership).Reference(x => x.InvitedBy).LoadAsync(cancellationToken);
+    }
 
     public async Task<IReadOnlyList<ListMember>> PendingForMeAsync(
         CancellationToken cancellationToken = default)

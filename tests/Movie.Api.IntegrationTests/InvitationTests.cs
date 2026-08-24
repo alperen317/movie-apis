@@ -39,6 +39,22 @@ public sealed class InvitationTests(MovieApiFactory factory) : IClassFixture<Mov
     }
 
     [Fact]
+    public async Task An_invitation_sends_the_invitee_an_email()
+    {
+        var owner = await factory.SignedInAsync();
+        var invitee = await factory.SignedInAsync();
+        var listId = await CreateListAsync(owner, "Oscar Winners");
+
+        await Invite(owner, listId, invitee.Email);
+
+        var email = factory.Emails.LastTo(invitee.Email);
+
+        email.ShouldNotBeNull();
+        email.Subject.ShouldContain("Oscar Winners");
+        email.HtmlBody.ShouldContain(owner.Email);
+    }
+
+    [Fact]
     public async Task An_unregistered_address_and_one_already_invited_answer_identically()
     {
         var owner = await factory.SignedInAsync();

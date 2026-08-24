@@ -1,4 +1,5 @@
 using Mediator;
+using Movie.Application.Abstractions.Email;
 using Movie.Application.Abstractions.Lists;
 using Movie.Domain.Lists;
 
@@ -27,7 +28,8 @@ public sealed record InviteResponse(InviteOutcome? Outcome, ListMemberDto? Membe
 public sealed class InviteToListCommandHandler(
     IListAccess access,
     IInvitationStore invitations,
-    IListEventPublisher events)
+    IListEventPublisher events,
+    IListInviteEmailSender emails)
     : IRequestHandler<InviteToListCommand, InviteResponse>
 {
     public async ValueTask<InviteResponse> Handle(
@@ -49,6 +51,7 @@ public sealed class InviteToListCommandHandler(
         if (result.Membership is not null)
         {
             await events.MembersChangedAsync(list.Id, cancellationToken);
+            await emails.SendAsync(result.Membership, list.Name, cancellationToken);
         }
 
         return new InviteResponse(

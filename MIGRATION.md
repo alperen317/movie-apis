@@ -295,9 +295,31 @@ metodu çağrısından önce `accessor.HttpContext`'i `Context.GetHttpContext()`
 doğru döner) tazeliyor. Tek bir yerde düzeltildi, böylece `ListHub`'ın hiçbir metodu bunu
 bilmek zorunda kalmıyor ve `IListAccess` hiç değişmedi.
 
-### Faz 6 — E-posta
+### Faz 6 — E-posta ✅
 İki Edge Function → tek `IEmailSender` (Brevo API). Şablonlar `send-auth-email/emailTemplates.ts`
-ve `send-list-invite-email/index.ts`'den taşınır.
+(Faz 2'de taşınmıştı) ve `send-list-invite-email/index.ts`'den taşındı.
+
+**`BrevoEmailSender` tek bir yerde Brevo'yu biliyor.** `IVerificationEmailSender` ve
+yeni `IListInviteEmailSender`, `IEmailSender`'ın üzerine kurulu — ikisi de şablon
+oluşturur, gönderimi devreder; hangi sağlayıcı olduğunu bilmezler. `AddInfrastructure`
+artık production'da bilerek hata fırlatmıyor, bunun yerine `Brevo:ApiKey` ve
+`Brevo:SenderEmail` yapılandırılmamışsa açılışta hata veriyor — `Jwt:SigningKey`
+kontrolüyle aynı gerekçe.
+
+**Davet e-postası gönder-ve-unut, doğrulama kodu değil.** `ListInviteEmailSender`
+`IEmailSender.SendAsync`'i kendi içinde yakalayıp logluyor; bir teslimat hatası zaten
+var olan bir daveti geçersiz kılmamalı, tıpkı Supabase edge function'ının davrandığı gibi.
+`BrevoEmailSender`'ın kendisi hata fırlatmaya devam ediyor — doğrulama kodu hiç
+gitmezse kayıt/parola sıfırlama akışının bunu bilmesi gerekiyor.
+
+**İnviter etiketi ve liste adı artık HTML-encode ediliyor.** Edge function ikisini de
+çiğ interpolasyonla e-posta gövdesine yazıyordu; görüntü adı ve liste adı kullanıcı
+girdisi olduğu için burada `WebUtility.HtmlEncode`'dan geçiriliyor — Faz 4d'de anket
+adayına yapılan doğrulamayla aynı gerekçe.
+
+**`InvitationStore.WithProfileAsync` artık `InvitedBy`'ı da yüklüyor.** E-postanın
+"filanca seni davet etti" satırı için gerekiyordu; önceden yalnızca davet edilenin
+profili yükleniyordu.
 
 ### Faz 7 — Mobil istemci geçişi
 `lib/supabase/*` → `lib/api/*` (token yenileme interceptor'lı fetch istemcisi).

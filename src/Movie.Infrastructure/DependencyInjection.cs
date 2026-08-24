@@ -33,7 +33,7 @@ public static class DependencyInjection
         services.AddPersistence(configuration);
         services.AddIdentity();
         services.AddJwtAuthentication(configuration);
-        services.AddEmail(isDevelopment);
+        services.AddEmail(configuration, isDevelopment);
         services.AddRealtime();
 
         return services;
@@ -53,23 +53,43 @@ public static class DependencyInjection
         services.AddScoped<IListEventPublisher, SignalRListEventPublisher>();
     }
 
-    private static void AddEmail(this IServiceCollection services, bool isDevelopment)
+    private static void AddEmail(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        bool isDevelopment)
     {
         services.AddScoped<IVerificationEmailSender, VerificationEmailSender>();
+        services.AddScoped<IListInviteEmailSender, ListInviteEmailSender>();
 
         if (isDevelopment)
         {
             // Writes the code straight to the log so the flow can be exercised
             // without an email provider. Registering this anywhere else would
-            // publish live codes to the logs, so the real sender (phase 6) has
-            // to exist before this branch is allowed to disappear.
+            // publish live codes to the logs, so it is confined to this branch.
             services.AddScoped<IEmailSender, LoggingEmailSender>();
+            return;
         }
-        else
+
+        var section = configuration.GetSection(BrevoOptions.SectionName);
+        var brevo = section.Get<BrevoOptions>()
+            ?? throw new InvalidOperationException($"The '{BrevoOptions.SectionName}' section is missing.");
+
+        // Fail at startup rather than on the first email a handler tries to
+        // send — the same reasoning as the signing key check below.
+        if (string.IsNullOrWhiteSpace(brevo.ApiKey) || string.IsNullOrWhiteSpace(brevo.SenderEmail))
         {
             throw new InvalidOperationException(
-                "No production email sender is configured yet. See phase 6 of MIGRATION.md.");
+                $"{BrevoOptions.SectionName}:ApiKey and {BrevoOptions.SectionName}:SenderEmail "
+                + "must both be configured outside development.");
         }
+
+        services.Configure<BrevoOptions>(section);
+        services.AddHttpClient<IEmailSender, BrevoEmailSender>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.brevo.com/v3/");
+            client.DefaultRequestHeaders.Add("api-key", brevo.ApiKey);
+            client.DefaultRequestHeaders.Add("accept", "application/json");
+        });
     }
 
     private static void AddPersistence(this IServiceCollection services, IConfiguration configuration)

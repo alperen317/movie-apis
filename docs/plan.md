@@ -11,8 +11,8 @@ alınan kararlar [MIGRATION.md](../MIGRATION.md) dosyasında.
 | 3 | RLS → Authorization | ✅ |
 | 4 | Endpoint'ler | ✅ |
 | 5 | SignalR | ✅ |
-| **6** | **E-posta (Brevo)** | sırada |
-| 7 | Mobil istemci geçişi | |
+| 6 | E-posta (Brevo) | ✅ |
+| **7** | **Mobil istemci geçişi** | sırada |
 | 8 | Dağıtım | |
 
 ---
@@ -147,17 +147,20 @@ kararlar [MIGRATION.md](../MIGRATION.md#faz-5--signalr-) altında.
 
 ---
 
-## Faz 6 — E-posta
+## Faz 6 — E-posta ✅
 
-İki Edge Function tek `IEmailSender` implementasyonuna iniyor. Arayüz ve şablonlar
-Faz 2'de yazıldı; eksik olan Brevo'ya gerçekten gönderen sınıf.
+İki Edge Function tek `IEmailSender` implementasyonuna indi. Arayüz ve doğrulama kodu
+şablonları Faz 2'de yazılmıştı; eksik olan Brevo'ya gerçekten gönderen sınıftı.
+Uygulanırken alınan kararlar [MIGRATION.md](../MIGRATION.md#faz-6--e-posta-) altında.
 
-- `BrevoEmailSender` — `https://api.brevo.com/v3/smtp/email`
-- Yapılandırma: `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`
-- **Production'da `AddInfrastructure` şu an bilerek hata fırlatıyor**; bu faz o kontrolü
-  kaldıracak
-- Liste davet e-postası şablonu `send-list-invite-email/index.ts`'den taşınacak
-- Gönderim hatası daveti geçersiz kılmamalı — Supabase'de de "gönder ve unut"tu
+- `BrevoEmailSender` — `https://api.brevo.com/v3/smtp/email`, `IEmailSender`'ın tek
+  production implementasyonu
+- Yapılandırma: `Brevo:ApiKey`, `Brevo:SenderEmail`, `Brevo:SenderName` — eksikse
+  açılışta hata
+- Liste davet e-postası şablonu `send-list-invite-email/index.ts`'den `IListInviteEmailSender`
+  + `ListInviteEmailTemplates`'e taşındı
+- Gönderim hatası daveti geçersiz kılmıyor — `ListInviteEmailSender` hatayı yutup logluyor,
+  Supabase'de de "gönder ve unut"tu
 
 ---
 
