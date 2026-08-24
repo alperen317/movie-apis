@@ -62,6 +62,14 @@ public sealed class ListHubTests(MovieApiFactory factory) : IClassFixture<MovieA
 
         var received = await itemAdded.Task.WaitAsync(TimeSpan.FromSeconds(10));
         received.Title.ShouldBe("Inception");
+        // Regression check: MediaType is typed as `string` here rather than the
+        // domain enum on purpose. The hub protocol has its own JsonSerializerOptions,
+        // separate from ConfigureHttpJsonOptions — without AddJsonProtocol's
+        // JsonStringEnumConverter, this field goes out as a raw number, which a
+        // JS client (no enum awareness) reads as an unusable `0`/`1` instead of
+        // "movie"/"tv". Deserializing that number into a C# enum here would have
+        // masked the bug; a `string` target makes the mismatch fail loudly instead.
+        received.MediaType.ShouldBe("movie");
     }
 
     [Fact]
@@ -80,6 +88,29 @@ public sealed class ListHubTests(MovieApiFactory factory) : IClassFixture<MovieA
 
         var received = await renamed.Task.WaitAsync(TimeSpan.FromSeconds(10));
         received.Name.ShouldBe("Best Picture");
+    }
+
+    [Fact]
+    public async Task A_member_hears_about_a_removed_item()
+    {
+        var owner = await factory.SignedInAsync();
+        var member = await factory.SignedInAsync();
+        var listId = await CreateListAsync(owner, "Oscar Winners");
+        await AddMemberAsync(listId, member.Id, MemberStatus.Accepted);
+        await owner.Client.PostAsJsonAsync($"/lists/{listId}/items", Inception);
+
+        await using var connection = await ConnectedAsync(member);
+        var itemRemoved = new TaskCompletionSource<ItemRemovedPayload>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.On<ItemRemovedPayload>("ItemRemoved", payload => itemRemoved.TrySetResult(payload));
+        await connection.InvokeAsync("JoinList", listId);
+
+        await owner.Client.DeleteAsync($"/lists/{listId}/items/movie/27205");
+
+        var received = await itemRemoved.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        received.MediaId.ShouldBe(27205);
+        // Same regression this guards against as A_member_hears_about_an_item_a_co_member_adds.
+        received.MediaType.ShouldBe("movie");
     }
 
     [Fact]
@@ -166,7 +197,13 @@ public sealed class ListHubTests(MovieApiFactory factory) : IClassFixture<MovieA
 
     private sealed record CreatedListDto(Guid Id);
 
-    private sealed record ItemAddedPayload([property: JsonPropertyName("title")] string Title);
+    private sealed record ItemAddedPayload(
+        [property: JsonPropertyName("title")] string Title,
+        [property: JsonPropertyName("mediaType")] string MediaType);
+
+    private sealed record ItemRemovedPayload(
+        [property: JsonPropertyName("mediaId")] int MediaId,
+        [property: JsonPropertyName("mediaType")] string MediaType);
 
     private sealed record ListRenamedPayload([property: JsonPropertyName("name")] string Name);
 }

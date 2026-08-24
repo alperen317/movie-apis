@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -45,7 +47,15 @@ public static class DependencyInjection
         // without it, ICurrentUser — and everything built on it, IListAccess
         // included — silently sees nobody signed in from inside a hub method.
         services.AddSingleton<HttpContextPropagationHubFilter>();
-        services.AddSignalR(options => options.AddFilter<HttpContextPropagationHubFilter>());
+        services
+            .AddSignalR(options => options.AddFilter<HttpContextPropagationHubFilter>())
+            // The hub protocol has its own JsonSerializerOptions, entirely
+            // separate from ConfigureHttpJsonOptions below — without this, an
+            // enum in an event payload (ItemRemovedPayload.MediaType, for
+            // instance) goes out as its raw numeric value instead of the
+            // lower-case string every REST response already uses.
+            .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(
+                new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 
         // The only way a handler reaches a list's connected members. Handlers
         // do not touch IHubContext directly, the same reason they do not touch
