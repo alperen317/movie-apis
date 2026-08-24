@@ -13,7 +13,7 @@ alınan kararlar [MIGRATION.md](../MIGRATION.md) dosyasında.
 | 5 | SignalR | ✅ |
 | 6 | E-posta (Brevo) | ✅ |
 | 7 | Mobil istemci geçişi | ✅ |
-| **8** | **Dağıtım** | sırada |
+| 8 | Dağıtım | ✅ |
 
 ---
 
@@ -180,12 +180,9 @@ tarihsel referans olarak kaldı, silinmedi.
 
 ---
 
-## Faz 8 — Dağıtım
+## Faz 8 — Dağıtım ✅
 
-- Production `Dockerfile` (mevcut olan geliştirme için yazıldı, gözden geçirilecek)
-- Ortam değişkenleri: `Jwt__SigningKey`, `ConnectionStrings__Database`, Brevo anahtarları
-- Migration stratejisi: geliştirmede açılışta uygulanıyor, production'da **açıkça**
-  çalıştırılmalı
-- Sağlık kontrolü ucu
-- CI: derleme + test (Testcontainers Docker istiyor)
-- Sentry entegrasyonu (mobil tarafta zaten var)
+Kendi VPS'e docker compose ile dağıtım hedeflendi (registry/managed platform yok). Sağlık
+kontrolü ucu, açık migration bayrağı, DSN'siz no-op Sentry, production Dockerfile/compose ve
+ilk CI kurulumu eklendi. Uygulanırken alınan kararlar
+[MIGRATION.md](../MIGRATION.md#faz-8--dağıtım-) altında.

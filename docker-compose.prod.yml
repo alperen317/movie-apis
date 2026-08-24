@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: movie-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: movie
+      POSTGRES_USER: movie
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # No host port mapping -- only `api`, over the compose network, ever
+    # needs to reach this. The dev compose file publishes 5435 for local
+    # tooling (Adminer, a host psql); nothing on a VPS needs that.
+    volumes:
+      - movie-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U movie -d movie"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: movie-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__Database: "Host=db;Port=5432;Database=movie;Username=movie;Password=${POSTGRES_PASSWORD}"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY}
+      Brevo__ApiKey: ${BREVO_API_KEY}
+      Brevo__SenderEmail: ${BREVO_SENDER_EMAIL}
+      Brevo__SenderName: ${BREVO_SENDER_NAME}
+      Sentry__Dsn: ${SENTRY_DSN:-}
+    ports:
+      - "8080:8080"
+
+volumes:
+  movie-db-data:

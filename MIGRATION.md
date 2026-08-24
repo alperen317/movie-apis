@@ -437,8 +437,59 @@ işaret etmekle değiştirildi; eski RLS/Realtime tasarım kararı paragrafları
 "bu proje artık Supabase kullanmıyor, tarihçe buradaydı, mekanizmaların güncel karşılığı
 `previously-api`'nin bu dosyasında" notuyla değiştirildi.
 
-### Faz 8 — Dağıtım
-Dockerfile, hosting, CI.
+### Faz 8 — Dağıtım ✅
+
+Hedef kendi VPS'i, docker compose ile — bir registry veya yönetilen platform yok. İmaj
+sunucuda build ediliyor, deploy `git pull` + `docker compose -f docker-compose.prod.yml up -d
+--build` ile manuel yapılıyor.
+
+**Migration için ayrı bir araç değil, `Program.cs`'e bir bayrak eklendi.** Geliştirmede
+migration'lar açılışta otomatik uygulanıyor (`app.Environment.IsDevelopment()` bloğu);
+production'da açık bir adım gerekiyordu. `dotnet-ef` CLI'ını runtime imajına kurmak yerine —
+imaj yalnızca `aspnet` runtime'ı, SDK değil — `--migrate` argümanıyla çalıştırıldığında
+uygulama migration'ları uygulayıp hiç dinlemeden çıkıyor:
+`docker compose -f docker-compose.prod.yml run --rm api dotnet Movie.Api.dll --migrate`,
+ardından `up -d api`. Mevcut `MigrateAsync()` çağrısı olduğu gibi yeniden kullanıldı.
+
+**Sağlık kontrolü ucu kimlik doğrulaması istemiyor, bilerek.** `/health`
+(`AddHealthChecks().AddDbContextCheck<MovieDbContext>()`) `.RequireAuthorization()` almadan
+map edildi — Docker'ın kendi `HEALTHCHECK`'i ve ileride bir orkestratörün olası canlılık
+probu buraya anonim erişecek.
+
+**Sentry DSN boşken sessizce no-op — mobildeki `EXPO_PUBLIC_SENTRY_DSN` deseninin sunucu
+tarafı karşılığı.** API tarafında henüz bir Sentry projesi/DSN'i yok; `Brevo:ApiKey` gibi
+"eksikse açılışta patla" bir kontrol eklemek yerine `builder.WebHost.UseSentry(options =>
+options.Dsn = builder.Configuration["Sentry:Dsn"])` kullanıldı — SDK'nın kendisi DSN boş
+olduğunda hiçbir şey yapmıyor. DSN kullanıcı istediğinde `Sentry__Dsn` ortam değişkeni olarak
+eklenecek.
+
+**Dockerfile'a `curl` eklendi, yalnızca `HEALTHCHECK` için.** `mcr.microsoft.com/dotnet/
+aspnet:10.0` (Debian tabanlı) `curl` içermiyor; `HEALTHCHECK CMD curl -f http://localhost:
+8080/health` konteynerin kendi içinden kendi ucuna erişebilsin diye runtime aşamasına apt ile
+eklendi, cache hemen temizlendi. Geri kalanı zaten production'a uygundu — multi-stage yapı,
+non-root kullanıcı; `docs/plan.md`'nin "geliştirme için yazıldı" notu isabetsiz çıktı.
+
+**Production compose dosyası ayrı, `docker-compose.yml`'in üzerine yazılmadı.**
+`docker-compose.prod.yml`: Adminer yok, Postgres portu dışa açılmıyor (yalnızca compose
+network'ü üzerinden erişiliyor — dev dosyasındaki `5435:5432` production'da gereksiz bir
+saldırı yüzeyi olurdu), tüm sırlar (`POSTGRES_PASSWORD`, `JWT_SIGNING_KEY`, Brevo anahtarları,
+`SENTRY_DSN`) `.env`'den (`.env.example` şablonu repoda) okunuyor — dev dosyasındaki sabit
+"development" şifre/anahtar orada kalıyor.
+
+**`dotnet format` gerçek kapsamı ~40 değil 157 dosyaydı.** `docs/plan.md`'de Faz 7'de
+saptanan "~40 dosya FINALNEWLINE" tahmini eksikti: `.editorconfig`'teki
+`dotnet_separate_import_directive_groups = true` (using blokları arasında boş satır) hiçbir
+dosyada hiç uygulanmamıştı, `insert_final_newline = false` (.cs dosyalarında son satırın
+*olmaması* gerekiyor — tersi değil) ile birlikte aynı 157 dosyayı etkiliyordu. İkisi de
+.editorconfig'te zaten tanımlıydı, davranışı doğru — yalnızca kapsam tahmini yanlıştı. Tek bir
+`style:` commit'inde mekanik olarak düzeltildi.
+
+**İlk CI kurulumu: yalnızca build + test, deploy adımı yok.** `.github/workflows/ci.yml` —
+`dotnet format --verify-no-changes` → `dotnet build -c Release` → `dotnet test -c Release`.
+İmajı bir registry'ye (GHCR) push eden bir adım bilinçli olarak eklenmedi; deploy VPS'te
+tamamen manuel kalıyor. Integration testler Testcontainers ile kendi Postgres konteynerini
+başlatıyor — `ubuntu-latest` runner'ında Docker zaten kurulu, ekstra bir servis/adım
+gerekmedi.
 
 ## Yerel geliştirme
 

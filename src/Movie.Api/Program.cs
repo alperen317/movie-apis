@@ -15,6 +15,10 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// A no-op when Sentry:Dsn is unset, the same behavior as the mobile client's
+// EXPO_PUBLIC_SENTRY_DSN -- see appsettings.json.
+builder.WebHost.UseSentry(options => options.Dsn = builder.Configuration["Sentry:Dsn"]);
+
 builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
 // Enums travel as lower-case names, the same values the database stores and
@@ -27,6 +31,7 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsDevelopment());
 builder.Services.AddAuthorization();
 builder.Services.AddApiRateLimiting(builder.Configuration);
+builder.Services.AddHealthChecks().AddDbContextCheck<MovieDbContext>();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -43,6 +48,17 @@ if (builder.Environment.IsDevelopment())
 }
 
 var app = builder.Build();
+
+// A one-shot alternative to running the app: apply pending migrations and
+// exit. Development applies migrations on every start (below); production
+// has no such block, so a deploy runs this explicitly first — see the
+// production compose file.
+if (args.Contains("--migrate"))
+{
+    await using var migrateScope = app.Services.CreateAsyncScope();
+    await migrateScope.ServiceProvider.GetRequiredService<MovieDbContext>().Database.MigrateAsync();
+    return;
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -81,6 +97,10 @@ app.MapInvitationEndpoints();
 app.MapPollEndpoints();
 
 app.MapHub<ListHub>("/hubs/list");
+
+// No .RequireAuthorization() -- Docker's HEALTHCHECK and any orchestrator
+// probing this need anonymous access.
+app.MapHealthChecks("/health");
 
 app.Run();
 
