@@ -10,8 +10,8 @@ alınan kararlar [MIGRATION.md](../MIGRATION.md) dosyasında.
 | 2 | Kimlik doğrulama | ✅ |
 | 3 | RLS → Authorization | ✅ |
 | 4 | Endpoint'ler | ✅ |
-| **5** | **SignalR** | sırada |
-| 6 | E-posta (Brevo) | |
+| 5 | SignalR | ✅ |
+| **6** | **E-posta (Brevo)** | sırada |
 | 7 | Mobil istemci geçişi | |
 | 8 | Dağıtım | |
 
@@ -140,25 +140,10 @@ Faz 3'te tanımlanan tek meşru çapraz kullanıcı okuması. Uygulanırken alı
 
 ---
 
-## Faz 5 — SignalR
+## Faz 5 — SignalR ✅
 
-Supabase Realtime'ın karşılığı. `ListHub`, grup adı `list:{listId}`.
-
-- İstemci bir listeyi açtığında gruba katılır, kapattığında ayrılır
-- Gruba katılmadan önce `IListAccess.ForMemberAsync` ile yetki kontrolü — aksi halde
-  herhangi biri herhangi bir listenin değişikliklerini dinleyebilir
-- Handler'lar mutasyondan sonra gruba yayın yapar: içerik eklendi/çıkarıldı, üye
-  değişti, liste yeniden adlandırıldı, anket güncellendi
-- JWT ile kimlik doğrulama: SignalR token'ı query string'de taşır, `OnMessageReceived`
-  ile alınmalı
-
-Supabase'deki iki hilenin karşılığı **gereksiz**:
-
-- `REPLICA IDENTITY FULL` (`0005`) — DELETE olaylarında silinen satırın kolonlarının
-  WAL'a yazılması içindi. Sunucu zaten neyi sildiğini biliyor.
-- İstemci tarafı filtreleme — Supabase'de DELETE olayları sunucu tarafında
-  filtrelenemediği için tüm tabloya abone olunup istemcide filtreleniyordu. Burada
-  yayın zaten yalnızca ilgili gruba gidiyor.
+Supabase Realtime'ın karşılığı. `ListHub`, grup adı `list:{listId}`. Uygulanırken alınan
+kararlar [MIGRATION.md](../MIGRATION.md#faz-5--signalr-) altında.
 
 ---
 
@@ -208,11 +193,3 @@ Ayrıca: kod geçerlilik süresi ekranında geri sayım düşünülebilir (kod 1
 - Sağlık kontrolü ucu
 - CI: derleme + test (Testcontainers Docker istiyor)
 - Sentry entegrasyonu (mobil tarafta zaten var)
-
----
-
-## Faz 5'e başlarken
-
-`ListHub`in gruplarına katılmadan önce yetki kontrolü `IListAccess.ForMemberAsync` üzerinden
-yapılacak — Faz 4'te yazılan store'lar ve erişim boğaz noktaları burada yeniden kullanılıyor,
-tekrar icat edilmiyor.

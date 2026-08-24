@@ -243,10 +243,57 @@ RPC → endpoint eşlemesi (kalan alt adımlar):
 
 Rate limit (`0012`, `0014`: 10 dakikada 20 deneme) → ASP.NET Core rate limiting middleware.
 
-### Faz 5 — SignalR
+### Faz 5 — SignalR ✅
 `ListHub`, grup adı `list:{listId}`. Handler'lar mutasyondan sonra gruba yayın yapar.
 Supabase Realtime'da DELETE olayları için gereken `REPLICA IDENTITY FULL` hilesi (`0005`)
 burada gereksiz — sunucu zaten silinen satırın tamamını biliyor.
+
+**`IListEventPublisher`, `IListAccess`'in yayın karşılığı.** Handler'lar `IHubContext`'e hiç
+dokunmuyor; ihtiyaç duydukları olayı isterler, uygulaması (`SignalRListEventPublisher`)
+`Movie.Infrastructure`'da. Aynı `Movie.Application`'ın EF Core'a değil soyutlamalara bağlı
+kalması gerekçesiyle — SignalR de bir altyapı detayı.
+
+**`ListHub` `Movie.Infrastructure/Realtime` altında, `Movie.Api` altında değil.**
+`HttpContextCurrentUser`'la aynı desen: ASP.NET Core'a özgü bir sınıf, soyutlamanın yanına
+değil somutlaştığı katmana yazıldı. Bunun bedeli `Movie.Infrastructure`'ın (düz bir sınıf
+kütüphanesi) `Hub`/`IHubContext` görebilmesi için `FrameworkReference`
+(`Microsoft.AspNetCore.App`) alması — SignalR'ın sunucu tarafı NuGet paketi olarak değil
+paylaşılan framework olarak dağıtıldığı için.
+
+**Gruba katılmak `IListAccess.ForMemberAsync`'ten geçiyor**, REST uçlarıyla birebir aynı
+kontrol. Üyesi olmadığı bir listeye katılmaya çalışan `HubException("not_a_member")` alıyor —
+listenin hiç var olmamasıyla aynı yanıt, 404'lerin arkasındaki gerekçe burada da geçerli.
+
+**Olay yükleri karışık: bazıları veri taşıyor, bazıları çıplak sinyal.** İçerik
+eklendi/çıkarıldı olayları handler'ın zaten oluşturduğu DTO'yu taşıyor (bedavaya geliyor).
+Üye değişti ve anket güncellendi ise yalnızca "git yeniden oku" diyor — bu ikisinin arkasında
+birden fazla farklı sebep var (davet, kabul, çıkarma / anket başlatma, oy), her birine ayrı
+bir yük şekli tanımlamak REST uçlarının DTO'larını burada tekrar etmek olurdu.
+
+**Liste silindi planın yazılı listesinde yoktu, eklendi.** O anda listeye bakan bir istemci
+"içerik/üye/anket" olaylarından hiçbirini almadan sessizce takılı kalırdı; silme de bir
+mutasyon, atlanacak bir sebep yoktu.
+
+**JWT sorgu dizesinden yalnızca `/hubs` altında okunuyor.** Tarayıcının WebSocket el
+sıkışması `Authorization` başlığı taşıyamıyor, SignalR istemcisi bu yüzden token'ı
+`access_token` sorgu parametresine koyuyor. Başka hiçbir yolda okunmuyor — orada token URL'e
+girmenin (loglara, tarayıcı geçmişine) hiçbir karşılığı yok, header zaten kullanılabiliyor.
+
+**Testler `Microsoft.AspNetCore.SignalR.Client`'la `WebApplicationFactory`'nin
+`TestServer`'ına bağlanıyor**, `HttpTransportType.LongPolling`'e zorlanarak — `TestServer`'ın
+altında gerçek bir soket yok, SignalR'ın önce denediği WebSocket'in üzerinde çalışacağı bir
+şey yok.
+
+**Yol boyunca bulunan hata: `IHttpContextAccessor` bir hub metodu içinde `null` dönüyordu.**
+Bağlantı `[Authorize]`'ı geçiyor (JWT doğrulanmış, `Context.User` dolu) ama
+`HttpContextCurrentUser`'ın okuduğu `IHttpContextAccessor.HttpContext` boş kalıyordu —
+sonuç, giriş yapmış her kullanıcının `ForMemberAsync`'ten `null` alması, yani kendi listesine
+bile katılamamasıydı. SignalR, ASP.NET Core'un normal istek hattının aksine, bir hub metodu
+çağrısına isteğin `HttpContext`'ini otomatik akıtmıyor — bu `IListAccess`'in üzerine kurulu
+her şeyi sessizce kırıyordu. Çözüm `HttpContextPropagationHubFilter` (`IHubFilter`): her hub
+metodu çağrısından önce `accessor.HttpContext`'i `Context.GetHttpContext()`'ten (bu her zaman
+doğru döner) tazeliyor. Tek bir yerde düzeltildi, böylece `ListHub`'ın hiçbir metodu bunu
+bilmek zorunda kalmıyor ve `IListAccess` hiç değişmedi.
 
 ### Faz 6 — E-posta
 İki Edge Function → tek `IEmailSender` (Brevo API). Şablonlar `send-auth-email/emailTemplates.ts`

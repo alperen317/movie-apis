@@ -86,7 +86,10 @@ public sealed class GetListItemsQueryHandler(IListAccess access, IListStore list
 /// </summary>
 public sealed record AddListItemCommand(Guid ListId, TitleSnapshot Title) : IRequest<ListItemDto?>;
 
-public sealed class AddListItemCommandHandler(IListAccess access, IListStore lists)
+public sealed class AddListItemCommandHandler(
+    IListAccess access,
+    IListStore lists,
+    IListEventPublisher events)
     : IRequestHandler<AddListItemCommand, ListItemDto?>
 {
     /// <returns>
@@ -105,8 +108,13 @@ public sealed class AddListItemCommandHandler(IListAccess access, IListStore lis
         }
 
         var item = await lists.AddItemAsync(list, command.Title, cancellationToken);
+        var dto = ListItemDto.From(item);
 
-        return ListItemDto.From(item);
+        // Sent even when the item was already there: a co-member's client that
+        // does not yet know that still benefits from hearing it.
+        await events.ItemAddedAsync(list.Id, dto, cancellationToken);
+
+        return dto;
     }
 }
 
@@ -117,7 +125,10 @@ public sealed class AddListItemCommandHandler(IListAccess access, IListStore lis
 public sealed record RemoveListItemCommand(Guid ListId, int MediaId, MediaType MediaType)
     : IRequest<bool>;
 
-public sealed class RemoveListItemCommandHandler(IListAccess access, IListStore lists)
+public sealed class RemoveListItemCommandHandler(
+    IListAccess access,
+    IListStore lists,
+    IListEventPublisher events)
     : IRequestHandler<RemoveListItemCommand, bool>
 {
     /// <returns>Whether the caller is a member of the list at all.</returns>
@@ -136,6 +147,12 @@ public sealed class RemoveListItemCommandHandler(IListAccess access, IListStore 
         // removed a moment ago leaves the list in the state the caller asked
         // for, which is not a failure.
         await lists.RemoveItemAsync(list, command.MediaId, command.MediaType, cancellationToken);
+
+        await events.ItemRemovedAsync(
+            list.Id,
+            command.MediaId,
+            command.MediaType,
+            cancellationToken);
 
         return true;
     }

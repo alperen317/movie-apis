@@ -98,7 +98,10 @@ public enum RemoveMemberOutcome
     CreatorCannotLeave,
 }
 
-public sealed class RemoveMemberCommandHandler(IListAccess access, IListStore lists)
+public sealed class RemoveMemberCommandHandler(
+    IListAccess access,
+    IListStore lists,
+    IListEventPublisher events)
     : IRequestHandler<RemoveMemberCommand, RemoveMemberOutcome>
 {
     public async ValueTask<RemoveMemberOutcome> Handle(
@@ -124,6 +127,8 @@ public sealed class RemoveMemberCommandHandler(IListAccess access, IListStore li
         }
 
         await lists.RemoveMemberAsync(membership, cancellationToken);
+
+        await events.MembersChangedAsync(membership.ListId, cancellationToken);
 
         return RemoveMemberOutcome.Removed;
     }

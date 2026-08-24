@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,7 @@ using Movie.Infrastructure.Email;
 using Movie.Infrastructure.Library;
 using Movie.Infrastructure.Lists;
 using Movie.Infrastructure.Persistence;
+using Movie.Infrastructure.Realtime;
 
 namespace Movie.Infrastructure;
 
@@ -32,8 +34,23 @@ public static class DependencyInjection
         services.AddIdentity();
         services.AddJwtAuthentication(configuration);
         services.AddEmail(isDevelopment);
+        services.AddRealtime();
 
         return services;
+    }
+
+    private static void AddRealtime(this IServiceCollection services)
+    {
+        // See HttpContextPropagationHubFilter for why this is needed at all:
+        // without it, ICurrentUser — and everything built on it, IListAccess
+        // included — silently sees nobody signed in from inside a hub method.
+        services.AddSingleton<HttpContextPropagationHubFilter>();
+        services.AddSignalR(options => options.AddFilter<HttpContextPropagationHubFilter>());
+
+        // The only way a handler reaches a list's connected members. Handlers
+        // do not touch IHubContext directly, the same reason they do not touch
+        // MovieDbContext's `lists` table directly — one seam, easy to find.
+        services.AddScoped<IListEventPublisher, SignalRListEventPublisher>();
     }
 
     private static void AddEmail(this IServiceCollection services, bool isDevelopment)
@@ -172,6 +189,27 @@ public static class DependencyInjection
                     ClockSkew = TimeSpan.FromSeconds(30),
 
                     NameClaimType = JwtRegisteredClaimNames.Sub,
+                };
+
+                // A browser's WebSocket handshake cannot carry an Authorization
+                // header, so the SignalR client puts the token on the query
+                // string instead. Only honoured under /hubs: everywhere else a
+                // token in the URL would end up in logs and history for no
+                // reason, since those requests can set the header instead.
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+
+                        if (!string.IsNullOrEmpty(accessToken)
+                            && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                        {
+                            context.Token = accessToken;
+                        }
+
+                        return Task.CompletedTask;
+                    },
                 };
             });
     }

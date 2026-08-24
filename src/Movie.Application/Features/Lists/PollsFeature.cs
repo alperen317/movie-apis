@@ -74,7 +74,10 @@ public sealed record StartListPollCommand(
     DateTime Deadline,
     IReadOnlyList<Guid> ItemIds) : IRequest<StartPollResult?>;
 
-public sealed class StartListPollCommandHandler(IListAccess access, IPollStore polls)
+public sealed class StartListPollCommandHandler(
+    IListAccess access,
+    IPollStore polls,
+    IListEventPublisher events)
     : IRequestHandler<StartListPollCommand, StartPollResult?>
 {
     /// <returns>Null when the caller cannot reach the list at all.</returns>
@@ -89,7 +92,14 @@ public sealed class StartListPollCommandHandler(IListAccess access, IPollStore p
             return null;
         }
 
-        return await polls.StartAsync(list, command.Deadline, command.ItemIds, cancellationToken);
+        var result = await polls.StartAsync(list, command.Deadline, command.ItemIds, cancellationToken);
+
+        if (result.Outcome == StartPollOutcome.Started)
+        {
+            await events.PollUpdatedAsync(list.Id, cancellationToken);
+        }
+
+        return result;
     }
 }
 
@@ -99,7 +109,10 @@ public sealed class StartListPollCommandHandler(IListAccess access, IPollStore p
 public sealed record CastPollVoteCommand(Guid PollId, Guid CandidateId)
     : IRequest<CastVoteOutcome?>;
 
-public sealed class CastPollVoteCommandHandler(IListAccess access, IPollStore polls)
+public sealed class CastPollVoteCommandHandler(
+    IListAccess access,
+    IPollStore polls,
+    IListEventPublisher events)
     : IRequestHandler<CastPollVoteCommand, CastVoteOutcome?>
 {
     /// <returns>Null when there is no such poll of the caller's to vote in.</returns>
@@ -117,6 +130,13 @@ public sealed class CastPollVoteCommandHandler(IListAccess access, IPollStore po
             return null;
         }
 
-        return await polls.VoteAsync(poll, command.CandidateId, cancellationToken);
+        var outcome = await polls.VoteAsync(poll, command.CandidateId, cancellationToken);
+
+        if (outcome == CastVoteOutcome.Recorded)
+        {
+            await events.PollUpdatedAsync(poll.ListId, cancellationToken);
+        }
+
+        return outcome;
     }
 }

@@ -13,7 +13,10 @@ namespace Movie.Application.Features.Lists;
 /// </remarks>
 public sealed record DeleteListCommand(Guid ListId) : IRequest<bool>;
 
-public sealed class DeleteListCommandHandler(IListAccess access, IListStore lists)
+public sealed class DeleteListCommandHandler(
+    IListAccess access,
+    IListStore lists,
+    IListEventPublisher events)
     : IRequestHandler<DeleteListCommand, bool>
 {
     public async ValueTask<bool> Handle(
@@ -26,6 +29,11 @@ public sealed class DeleteListCommandHandler(IListAccess access, IListStore list
         {
             return false;
         }
+
+        // Broadcast first: once the row is gone, IListAccess has nothing left
+        // to check a rejoin against, and a member still connected should hear
+        // about the deletion rather than just stop hearing about anything else.
+        await events.ListDeletedAsync(list.Id, cancellationToken);
 
         await lists.DeleteAsync(list, cancellationToken);
 

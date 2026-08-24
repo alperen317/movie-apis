@@ -9,7 +9,10 @@ namespace Movie.Application.Features.Lists;
 /// </summary>
 public sealed record RenameListCommand(Guid ListId, string Name) : IRequest<SharedListDto?>;
 
-public sealed class RenameListCommandHandler(IListAccess access, IListStore lists)
+public sealed class RenameListCommandHandler(
+    IListAccess access,
+    IListStore lists,
+    IListEventPublisher events)
     : IRequestHandler<RenameListCommand, SharedListDto?>
 {
     /// <returns>Null when the caller has no such list to rename.</returns>
@@ -25,6 +28,8 @@ public sealed class RenameListCommandHandler(IListAccess access, IListStore list
         }
 
         await lists.RenameAsync(list, command.Name, cancellationToken);
+
+        await events.ListRenamedAsync(list.Id, command.Name, cancellationToken);
 
         return SharedListDto.ForMember(list);
     }

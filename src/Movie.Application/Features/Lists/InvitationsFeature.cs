@@ -24,7 +24,10 @@ public sealed record InviteResponse(InviteOutcome? Outcome, ListMemberDto? Membe
     public static InviteResponse Unreachable => new(Outcome: null, Membership: null);
 }
 
-public sealed class InviteToListCommandHandler(IListAccess access, IInvitationStore invitations)
+public sealed class InviteToListCommandHandler(
+    IListAccess access,
+    IInvitationStore invitations,
+    IListEventPublisher events)
     : IRequestHandler<InviteToListCommand, InviteResponse>
 {
     public async ValueTask<InviteResponse> Handle(
@@ -42,6 +45,11 @@ public sealed class InviteToListCommandHandler(IListAccess access, IInvitationSt
         }
 
         var result = await invitations.InviteAsync(list, command.Email, cancellationToken);
+
+        if (result.Membership is not null)
+        {
+            await events.MembersChangedAsync(list.Id, cancellationToken);
+        }
 
         return new InviteResponse(
             result.Outcome,
@@ -92,7 +100,10 @@ public sealed class GetPendingInvitesQueryHandler(IInvitationStore invitations)
 /// </summary>
 public sealed record RespondToInviteCommand(Guid MembershipId, bool Accept) : IRequest<bool>;
 
-public sealed class RespondToInviteCommandHandler(IListAccess access, IInvitationStore invitations)
+public sealed class RespondToInviteCommandHandler(
+    IListAccess access,
+    IInvitationStore invitations,
+    IListEventPublisher events)
     : IRequestHandler<RespondToInviteCommand, bool>
 {
     /// <returns>False when there is no such invitation of the caller's to answer.</returns>
@@ -109,6 +120,8 @@ public sealed class RespondToInviteCommandHandler(IListAccess access, IInvitatio
 
         await invitations.RespondAsync(invitation, command.Accept, cancellationToken);
 
+        await events.MembersChangedAsync(invitation.ListId, cancellationToken);
+
         return true;
     }
 }
@@ -123,7 +136,9 @@ public sealed class RespondToInviteCommandHandler(IListAccess access, IInvitatio
 /// </remarks>
 public sealed record JoinListByCodeCommand(string Code) : IRequest<SharedListDto?>;
 
-public sealed class JoinListByCodeCommandHandler(IInvitationStore invitations)
+public sealed class JoinListByCodeCommandHandler(
+    IInvitationStore invitations,
+    IListEventPublisher events)
     : IRequestHandler<JoinListByCodeCommand, SharedListDto?>
 {
     /// <returns>Null when no list has that code.</returns>
@@ -133,9 +148,16 @@ public sealed class JoinListByCodeCommandHandler(IInvitationStore invitations)
     {
         var list = await invitations.JoinByCodeAsync(command.Code, cancellationToken);
 
+        if (list is null)
+        {
+            return null;
+        }
+
+        await events.MembersChangedAsync(list.Id, cancellationToken);
+
         // A member by the time this returns, so the code comes back with it —
         // which they have anyway, having just typed it.
-        return list is null ? null : SharedListDto.ForMember(list);
+        return SharedListDto.ForMember(list);
     }
 }
 

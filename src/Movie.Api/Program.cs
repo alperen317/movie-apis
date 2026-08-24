@@ -7,6 +7,7 @@ using Movie.Api.OpenApi;
 using Movie.Application;
 using Movie.Infrastructure;
 using Movie.Infrastructure.Persistence;
+using Movie.Infrastructure.Realtime;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -60,6 +61,8 @@ app.MapRecommendationFeedbackEndpoints();
 app.MapListEndpoints();
 app.MapInvitationEndpoints();
 app.MapPollEndpoints();
+
+app.MapHub<ListHub>("/hubs/list");
 
 app.Run();
 
