@@ -12,7 +12,8 @@ public sealed record ProfileDto(
     string? DisplayName,
     AvatarVariant AvatarVariant,
     string? AvatarSeed,
-    string? WatchRegion)
+    string? WatchRegion,
+    DateTime CreatedAt)
 {
     public static ProfileDto From(ApplicationUser user) => new(
         user.Id,
@@ -20,7 +21,8 @@ public sealed record ProfileDto(
         user.DisplayName,
         user.AvatarVariant,
         user.AvatarSeed,
-        user.WatchRegion);
+        user.WatchRegion,
+        user.CreatedAt);
 }
 
 public sealed class GetProfileQueryHandler(UserManager<ApplicationUser> users)

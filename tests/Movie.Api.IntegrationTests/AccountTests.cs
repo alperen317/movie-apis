@@ -21,6 +21,7 @@ public sealed class AccountTests(MovieApiFactory factory) : IClassFixture<MovieA
         profile.DisplayName.ShouldBeNull();
         profile.AvatarVariant.ShouldBe("beam");
         profile.WatchRegion.ShouldBeNull();
+        profile.CreatedAt.ShouldBeInRange(DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow);
     }
 
     [Fact]
@@ -156,5 +157,6 @@ public sealed class AccountTests(MovieApiFactory factory) : IClassFixture<MovieA
         string? DisplayName,
         string AvatarVariant,
         string? AvatarSeed,
-        string? WatchRegion);
+        string? WatchRegion,
+        DateTime CreatedAt);
 }
