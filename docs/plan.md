@@ -12,8 +12,8 @@ alınan kararlar [MIGRATION.md](../MIGRATION.md) dosyasında.
 | 4 | Endpoint'ler | ✅ |
 | 5 | SignalR | ✅ |
 | 6 | E-posta (Brevo) | ✅ |
-| **7** | **Mobil istemci geçişi** | sırada |
-| 8 | Dağıtım | |
+| 7 | Mobil istemci geçişi | ✅ |
+| **8** | **Dağıtım** | sırada |
 
 ---
 
@@ -164,26 +164,19 @@ Uygulanırken alınan kararlar [MIGRATION.md](../MIGRATION.md#faz-6--e-posta-) a
 
 ---
 
-## Faz 7 — Mobil istemci geçişi
+## Faz 7 — Mobil istemci geçişi ✅
 
-`lib/supabase/*` → `lib/api/*`.
+`mobile-base`'te `lib/supabase/*` → `lib/api/*`, `@supabase/supabase-js` kaldırıldı. Dört
+alt fazda yürütüldü (7a HTTP istemci + auth/profil, 7b kişisel içerik store'ları, 7c
+paylaşımlı listeler + SignalR, 7d bağımlılık temizliği), her biri kendi commit'ini ve
+canlı (Docker'daki previously-api + Expo web + iki hesap) doğrulamasını aldı. Uygulanırken
+alınan kararlar — token yenileme tasarımı, `PUT /me` tam-değiştirme için istemci tarafı
+birleştirme, SignalR bağlantı ömrü/reconnect, ve canlı testte bulunup düzeltilen bir
+SignalR enum serileştirme hatası dahil — [MIGRATION.md](../MIGRATION.md#faz-7--mobil-istemci-geçişi-)
+altında.
 
-- Token yenileme interceptor'lı fetch istemcisi: 401 alınca bir kez `/auth/refresh`
-  deneyip isteği tekrarlar, o da başarısızsa oturumu kapatır
-- `authStorage.ts` olduğu gibi kalır — "beni hatırla" tamamen istemci tarafı
-- Realtime aboneliği `@supabase/supabase-js`'ten SignalR istemcisine geçer
-- `stores/*.ts` güncellenir; mevcut jest testleri sözleşme kontrolü olarak kullanılır
-- `@supabase/supabase-js` bağımlılığı kaldırılır
-
-Bilinen sözleşme farkları (Faz 2 ve 3'te alınan kararlar):
-
-- **`PUT /me` kısmi güncelleme değil**, gönderilmeyen alan siliniyor. `updateOwnProfile`
-  buna göre yazılacak
-- **Access token 15 dakika** (60 değil) — yenileme daha sık, istemci mantığı aynı
-- **`verify-email` token dönüyor**, yani doğrulamadan sonra ayrıca giriş gerekmiyor
-- Enum'lar küçük harfli metin olarak gidip geliyor, mevcut string literal'lerle uyumlu
-
-Ayrıca: kod geçerlilik süresi ekranında geri sayım düşünülebilir (kod 1 saat geçerli).
+`supabase/` CLI proje klasörü (migrations, Edge Functions) mobil repoda kullanıcı kararıyla
+tarihsel referans olarak kaldı, silinmedi.
 
 ---
 

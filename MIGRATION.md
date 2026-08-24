@@ -321,9 +321,121 @@ adayına yapılan doğrulamayla aynı gerekçe.
 "filanca seni davet etti" satırı için gerekiyordu; önceden yalnızca davet edilenin
 profili yükleniyordu.
 
-### Faz 7 — Mobil istemci geçişi
-`lib/supabase/*` → `lib/api/*` (token yenileme interceptor'lı fetch istemcisi).
-`stores/*.ts` güncellenir; mevcut jest testleri sözleşme kontrolü olarak kullanılır.
+### Faz 7 — Mobil istemci geçişi ✅
+`mobile-base`'te `lib/supabase/*` → `lib/api/*`, `@supabase/supabase-js` bağımlılığı
+kaldırıldı. Dört alt fazda yürütüldü, her biri kendi commit'ini ve canlı doğrulamasını
+aldı. Uygulanırken alınan kararlar burada kayıtlı — mobil repo ayrı olduğu için ilerleme
+oradan değil buradan takip ediliyor.
+
+#### Faz 7a — HTTP istemci + auth/profil ✅
+
+**`lib/api/client.ts` yalnızca reaktif yeniliyor, proaktif değil.** 401 alan bir istek
+saklı refresh token'la `/auth/refresh`'i bir kez dener, başarılıysa orijinal isteği yeni
+token'la tekrarlar, başarısızsa token'ları temizleyip `onSessionExpired` callback'ini
+tetikler. Zamanlı bir arka plan yenileme döngüsü yok — Faz 2/3'te alınan "access token 15
+dakika, proaktif değil reaktif yenileme" kararına sadık kalındı.
+
+**`onSessionExpired` bir callback registry, doğrudan store import'u değil.** `client.ts`
+`stores/auth.store.ts`'i import etseydi (temizlik için) döngüsel bağımlılık doğardı; onun
+yerine `auth.store.ts` `initialize()` içinde kendini bu callback'e abone ediyor.
+
+**Kullanıcı kimliği JWT'den istemci tarafında decode ediliyor, imza doğrulanmadan.**
+`lib/api/tokenStore.ts#decodeUserId` `sub` claim'ini bağımlılıksız bir base64url decode ile
+okuyor — yalnızca "bu liste öğesini ben mi ekledim" gibi UI kararları için, güvenlik
+sunucu tarafında zaten her istekte ayrıca doğrulanıyor.
+
+**`PUT /me` tam değiştirme olduğu için `profile.store.ts#updateProfile` çağrıdan önce
+mevcut profille birleştiriyor.** Bileşenler eskisi gibi kısmi güncelleme (`{avatarSeed:
+'x'}`) verebiliyor; store bunu tam nesneye tamamlayıp öyle gönderiyor.
+
+**`resetPassword` artık kodu harcadıktan sonra ayrıca giriş yapıyor.** Eski Supabase akışı
+(`verifyOtp(type:'recovery')`) kurtarma kodunu doğrularken bir oturum da açıyordu; yeni
+`POST /auth/reset-password` yalnızca şifreyi değiştiriyor, oturum açmıyor. Ekranın
+"oturum varsa reset başarılı" yönlendirmesini bozmamak için store, kod başarıyla
+harcandıktan hemen sonra yeni şifreyle `login` çağırıyor.
+
+**`ProfileDto`'ya `CreatedAt` eklendi.** Mobildeki "üye olma tarihi" alanı Supabase
+session'ının `user.created_at`'ından geliyordu; `ApplicationUser.CreatedAt` zaten vardı,
+yalnızca DTO'ya yansıtılmamıştı — küçük bir API değişikliği, migration gerekmedi.
+
+**Dev-only CORS eklendi.** Yalnızca `Development`'ta, loopback origin'lere izin veren bir
+politika — Expo web önizlemesinin kendi Metro origin'inden bu API'ye erişebilmesi için;
+native React Native istemcisi CORS'tan hiç etkilenmiyor, üretimde karşılığı yok.
+
+#### Faz 7b — Kişisel içerik store'ları ✅
+
+Dört modül (`savedMedia`, `watchLog`, `episodeProgress`, `recommendationFeedback`) aynı
+kalıba döküldü: aynı fonksiyon adları/imzaları, aynı client-side batch chunk'ları, sunucu
+DTO'ları zaten `SavedMediaItem`/`WatchLogEntry` gibi TS arayüzleriyle bire bir eştiği için
+snake_case→camelCase satır eşleme kodu tamamen kalktı. Her fonksiyonun başındaki
+`supabase.auth.getUser()` çağrısı gitti — kimlik artık sunucuda bearer token'dan çıkıyor.
+`markEpisodesWatchedBatch`'e sunucunun 2000'lik tavanına (`Batches.MaxEpisodes`) karşı
+savunmacı chunking eklendi; eski Supabase çağrısının böyle bir sınırı yoktu.
+
+#### Faz 7c — Paylaşımlı listeler + SignalR ✅
+
+**Bağlantı uygulama ömrü boyunca tek, liste başına değil.** Eski Supabase Realtime her
+liste ekranı için ayrı bir kanal açıyordu; yeni tasarımda tek bir SignalR bağlantısı var,
+`JoinList`/`LeaveList` ile liste bazlı grup üyeliği yönetiliyor — kanal yaşam döngüsünün
+karşılığı artık bağlantı değil, grup üyeliği.
+
+**`skipNegotiation: true` + yalnızca WebSockets.** React Native'de SignalR'ın normal
+negotiate el sıkışması sorunlu olabiliyor; bunun yerine doğrudan WebSocket'e gidiliyor.
+Sunucu zaten buna hazırdı — `ListHub`'ın `JwtBearerEvents.OnMessageReceived`'i `/hubs`
+altında `?access_token=` sorgu parametresini kabul ediyor (Faz 5'te tarayıcı WebSocket
+handshake'i için eklenmişti, aynı mekanizma burada da işe yarıyor).
+
+**Reconnect'te gruplar otomatik yeniden katılıyor.** Grup üyeliği bağlantıya bağlı;
+otomatik yeniden bağlanma yeni bir bağlantı kimliği alıyor ve sunucu hangi gruplarda
+olduğunu unutuyor. `lib/api/realtime.ts` hangi listelerin aktif olarak dinlendiğini kendi
+içinde takip edip `onreconnected`'da hepsini yeniden `JoinList` ile katılıyor.
+
+**Sign-out'ta bağlantı kapatılıyor.** Aksi halde artık geçersiz bir token'la sonsuza kadar
+yeniden bağlanmayı deneyen, boşta bir bağlantı kalırdı.
+
+**`ItemAdded`/`ItemRemoved` istemci tarafını basitleştirdi, yalnızca taşımadı.** Eski
+Supabase `postgres_changes` payload'ı DELETE'te yalnızca birincil anahtarı taşıdığından
+(`REPLICA IDENTITY DEFAULT`), istemci bir `_listItemsByRowId` ters-eşleme tablosu
+tutuyordu. `ItemHub`'ın `ItemRemoved` olayı `{mediaId, mediaType}`'ı doğrudan taşıdığı için
+bu hack tamamen kalktı. `ItemAdded` de artık tam `ListItemDto`'yu taşıyor (ekleyenin
+adı/avatarı dahil), istemcinin üye listesinden isim araması gerekmiyor.
+
+**`ListDeleted` yeni bir olay — Supabase'de karşılığı yoktu.** Eski sistemde bir liste
+silindiğinde o an bakan bir istemci hiçbir olay almadan sessizce takılı kalırdı (Faz
+5'te de not edilmişti, ama mobil taraf hiç ele almamıştı). Yeni handler store'u ekrana
+navigasyon yaptırmak yerine (store `expo-router`'a hiç bağımlı değil) `detailError`'ı
+localize edilmiş bir mesajla dolduruyor — ekranın zaten var olan hata durumu UI'ı bunu
+gösteriyor.
+
+**`SharedListsError` artık RPC hata mesajı eşleştirmiyor, `{error, message}` gövdesinden ve
+HTTP durumundan okuyor.** `not_owner` kodu kalktı (join-code yenileme 404'e toplandı);
+`invalid_candidate` ve `creator_cannot_leave` yeni kodlar olarak eklendi; `rate_limited`
+artık kod-spesifik değil, herhangi bir çağrıda genel HTTP 429'dan geliyor.
+
+**Bulunan ve düzeltilen gerçek bir previously-api hatası: SignalR'ın kendi
+`JsonSerializerOptions`'ı var.** `ConfigureHttpJsonOptions`'a eklenen
+`JsonStringEnumConverter` yalnızca Minimal API'yi etkiliyor, `AddSignalR()`'ın Hub
+Protocol'üne hiç uğramıyor. Bunun sonucu: `ItemRemovedPayload.MediaType` gibi enum alanları
+ham sayısal değer olarak gidiyordu (`"movie"` yerine `0`). `ItemAdded` görsel olarak
+çalışıyor gibi göründü çünkü etkilenen alan istemcinin anahtar hesaplamasında kritik
+değildi; `ItemRemoved` ise iki hesapla canlı testte hiçbir öğeyi eşleştiremeyip sessizce
+başarısız oldu. Düzeltme: `AddSignalR().AddJsonProtocol(...)` ile aynı
+`JsonStringEnumConverter(JsonNamingPolicy.CamelCase)` Hub Protocol'üne de eklendi.
+Regresyon, alınan payload'da `MediaType`'ı domain enum'u yerine bilerek `string` olarak
+tipleyen iki yeni `ListHubTests` testiyle kilitlendi — ham bir sayı bir C# `string`'e asla
+deserialize olamayacağı için regresyon sessizce yutulmak yerine gürültülü başarısız olur.
+
+#### Faz 7d — Bağımlılık temizliği ✅
+
+`lib/supabase/` klasörü tamamen silindi, `@supabase/supabase-js` ve (yalnızca o modülün
+ihtiyacı olan) `react-native-url-polyfill` kaldırıldı. `supabase/` CLI proje klasörü
+(migrations, Edge Functions, `config.toml`) kullanıcı kararıyla **tarihsel referans olarak
+kalıyor** — hiçbir şey artık ondan okumuyor, ama silinmedi. Mobil `README.md` bu duruma
+göre güncellendi: eski Supabase kurulum adımları (CLI kurulumu, migration push, Edge
+Function deploy'u) `previously-api`'yi ayağa kaldırıp `EXPO_PUBLIC_API_BASE_URL`'i ona
+işaret etmekle değiştirildi; eski RLS/Realtime tasarım kararı paragrafları tek bir
+"bu proje artık Supabase kullanmıyor, tarihçe buradaydı, mekanizmaların güncel karşılığı
+`previously-api`'nin bu dosyasında" notuyla değiştirildi.
 
 ### Faz 8 — Dağıtım
 Dockerfile, hosting, CI.
