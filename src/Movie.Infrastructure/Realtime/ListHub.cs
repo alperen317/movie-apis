@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+
 using Movie.Application.Abstractions.Lists;
 
 namespace Movie.Infrastructure.Realtime;

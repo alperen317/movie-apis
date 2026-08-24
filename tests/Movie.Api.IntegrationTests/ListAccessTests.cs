@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+
 using Movie.Domain.Lists;
 using Movie.Domain.Users;
 using Movie.Infrastructure.Authentication;
 using Movie.Infrastructure.Lists;
+
 using Shouldly;
 
 namespace Movie.Api.IntegrationTests;

@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+
 using Movie.Domain.Library;
 using Movie.Domain.Media;
 using Movie.Domain.Users;
+
 using Shouldly;
 
 namespace Movie.Api.IntegrationTests;

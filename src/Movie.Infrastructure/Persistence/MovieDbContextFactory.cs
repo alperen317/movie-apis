@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+
 using Movie.Infrastructure.Authentication;
 
 namespace Movie.Infrastructure.Persistence;

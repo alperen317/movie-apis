@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+
 using Movie.Application.Abstractions.Authentication;
 using Movie.Domain.Users;
 using Movie.Infrastructure.Persistence;

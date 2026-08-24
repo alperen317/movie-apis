@@ -1,4 +1,5 @@
 using Mediator;
+
 using Movie.Application.Abstractions.Lists;
 
 namespace Movie.Application.Features.Lists;

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+
 using Movie.Infrastructure.Authentication;
 using Movie.Infrastructure.Persistence;
+
 using Testcontainers.PostgreSql;
 
 namespace Movie.Api.IntegrationTests;

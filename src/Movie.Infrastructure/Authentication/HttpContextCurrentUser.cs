@@ -1,6 +1,8 @@
 using System.Security.Claims;
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.JsonWebTokens;
+
 using Movie.Application.Abstractions;
 
 namespace Movie.Infrastructure.Authentication;

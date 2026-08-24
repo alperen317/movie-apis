@@ -1,6 +1,8 @@
 using Mediator;
+
 using Movie.Application.Features.Lists;
 using Movie.Domain.Media;
+
 using static Movie.Api.Endpoints.EnumParameters;
 
 namespace Movie.Api.Endpoints;

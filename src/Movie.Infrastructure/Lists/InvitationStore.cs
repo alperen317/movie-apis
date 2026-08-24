@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+
 using Movie.Application.Abstractions;
 using Movie.Application.Abstractions.Lists;
 using Movie.Domain.Lists;

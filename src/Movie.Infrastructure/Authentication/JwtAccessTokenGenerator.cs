@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using System.Text;
+
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
+
 using Movie.Application.Abstractions.Authentication;
 using Movie.Domain.Users;
 

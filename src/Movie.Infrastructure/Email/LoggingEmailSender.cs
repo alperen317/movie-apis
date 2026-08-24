@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+
 using Movie.Application.Abstractions.Email;
 
 namespace Movie.Infrastructure.Email;

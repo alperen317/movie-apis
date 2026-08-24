@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+
 using Microsoft.EntityFrameworkCore;
+
 using Shouldly;
 
 namespace Movie.Api.IntegrationTests;

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+
 using Movie.Application.Abstractions.Email;
 
 namespace Movie.Api.IntegrationTests;

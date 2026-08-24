@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
 using Movie.Domain.Users;
 
 namespace Movie.Infrastructure.Persistence.Configurations;

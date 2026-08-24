@@ -1,6 +1,9 @@
 using System.Security.Claims;
+
 using Mediator;
+
 using Microsoft.IdentityModel.JsonWebTokens;
+
 using Movie.Application.Features.Account;
 using Movie.Domain.Users;
 

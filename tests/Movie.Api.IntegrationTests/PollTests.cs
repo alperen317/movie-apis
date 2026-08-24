@@ -1,7 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+
 using Microsoft.EntityFrameworkCore;
+
 using Movie.Domain.Lists;
+
 using Shouldly;
 
 namespace Movie.Api.IntegrationTests;

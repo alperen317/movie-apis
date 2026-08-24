@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+
 using Movie.Domain.Lists;
 using Movie.Domain.Users;
+
 using Shouldly;
 
 namespace Movie.Api.IntegrationTests;

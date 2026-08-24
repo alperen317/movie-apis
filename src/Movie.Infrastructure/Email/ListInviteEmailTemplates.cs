@@ -1,4 +1,5 @@
 using System.Net;
+
 using Movie.Application.Abstractions.Email;
 
 namespace Movie.Infrastructure.Email;

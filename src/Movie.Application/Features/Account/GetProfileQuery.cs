@@ -1,5 +1,7 @@
 using Mediator;
+
 using Microsoft.AspNetCore.Identity;
+
 using Movie.Domain.Users;
 
 namespace Movie.Application.Features.Account;

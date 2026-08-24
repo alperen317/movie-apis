@@ -1,4 +1,5 @@
 using Mediator;
+
 using Movie.Application.Abstractions.Authentication;
 
 namespace Movie.Application.Features.Authentication;

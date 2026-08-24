@@ -1,7 +1,9 @@
 using Mediator;
+
 using Movie.Application.Features.Library;
 using Movie.Domain.Library;
 using Movie.Domain.Media;
+
 using static Movie.Api.Endpoints.EnumParameters;
 
 namespace Movie.Api.Endpoints;

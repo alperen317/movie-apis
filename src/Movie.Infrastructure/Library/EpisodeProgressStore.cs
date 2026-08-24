@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+
 using Movie.Application.Abstractions;
 using Movie.Application.Abstractions.Library;
 using Movie.Infrastructure.Persistence;
+
 using Progress = Movie.Domain.Library.EpisodeProgress;
 
 namespace Movie.Infrastructure.Library;

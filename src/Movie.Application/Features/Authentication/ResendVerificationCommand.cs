@@ -1,5 +1,7 @@
 using Mediator;
+
 using Microsoft.AspNetCore.Identity;
+
 using Movie.Application.Abstractions.Authentication;
 using Movie.Application.Abstractions.Email;
 using Movie.Domain.Users;

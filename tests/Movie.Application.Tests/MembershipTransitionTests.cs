@@ -1,4 +1,5 @@
 using Movie.Domain.Lists;
+
 using Shouldly;
 
 namespace Movie.Application.Tests;

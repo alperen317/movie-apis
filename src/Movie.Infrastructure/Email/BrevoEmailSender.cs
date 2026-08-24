@@ -1,5 +1,7 @@
 using System.Net.Http.Json;
+
 using Microsoft.Extensions.Options;
+
 using Movie.Application.Abstractions.Email;
 
 namespace Movie.Infrastructure.Email;

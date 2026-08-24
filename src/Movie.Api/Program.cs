@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+
 using Microsoft.EntityFrameworkCore;
+
 using Movie.Api;
 using Movie.Api.Endpoints;
 using Movie.Api.OpenApi;
@@ -8,6 +10,7 @@ using Movie.Application;
 using Movie.Infrastructure;
 using Movie.Infrastructure.Persistence;
 using Movie.Infrastructure.Realtime;
+
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);

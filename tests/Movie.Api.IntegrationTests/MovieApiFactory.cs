@@ -1,14 +1,17 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+
 using Movie.Application.Abstractions.Email;
 using Movie.Infrastructure.Authentication;
 using Movie.Infrastructure.Persistence;
+
 using Testcontainers.PostgreSql;
 
 namespace Movie.Api.IntegrationTests;

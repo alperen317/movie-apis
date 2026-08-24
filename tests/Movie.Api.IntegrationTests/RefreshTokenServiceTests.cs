@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+
 using Movie.Application.Abstractions.Authentication;
 using Movie.Domain.Users;
 using Movie.Infrastructure.Authentication;
+
 using Shouldly;
 
 namespace Movie.Api.IntegrationTests;
