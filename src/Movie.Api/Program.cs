@@ -25,10 +25,25 @@ builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.Is
 builder.Services.AddAuthorization();
 builder.Services.AddApiRateLimiting(builder.Configuration);
 
+if (builder.Environment.IsDevelopment())
+{
+    // Only a browser enforces this at all — the mobile client (React Native)
+    // never does, so this has no production equivalent. It exists purely so
+    // the Expo web preview, running on its own Metro origin, can reach this
+    // API during local development.
+    builder.Services.AddCors(options => options.AddPolicy(
+        "dev",
+        policy => policy
+            .SetIsOriginAllowed(origin => Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.IsLoopback)
+            .AllowAnyHeader()
+            .AllowAnyMethod()));
+}
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    app.UseCors("dev");
     app.MapOpenApi();
     app.MapScalarApiReference(options => options.WithTitle("Movie API"));
 
