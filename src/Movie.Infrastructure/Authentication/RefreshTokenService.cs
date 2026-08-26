@@ -73,11 +73,27 @@ public sealed class RefreshTokenService(MovieDbContext database) : IRefreshToken
             ExpiresAt = now.Add(RefreshToken.Lifetime),
         };
 
+        // Claims the row with a single conditional UPDATE rather than the
+        // read-then-write above: two concurrent rotations of the same token
+        // would otherwise both see RevokedAt == null and both succeed,
+        // handing out two valid successors for one token. Only the request
+        // whose UPDATE actually matches the WHERE clause wins; the database's
+        // row lock on the first commit makes the second one see it as already
+        // revoked.
+        var claimed = await database.RefreshTokens
+            .Where(token => token.Id == stored.Id && token.RevokedAt == null)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(token => token.RevokedAt, now)
+                    .SetProperty(token => token.ReplacedById, issued.Id),
+                cancellationToken);
+
+        if (claimed == 0)
+        {
+            return RefreshOutcome.Rejected;
+        }
+
         database.RefreshTokens.Add(issued);
-
-        stored.RevokedAt = now;
-        stored.ReplacedById = issued.Id;
-
         await database.SaveChangesAsync(cancellationToken);
 
         return new RefreshOutcome(stored.UserId, replacement);

@@ -1,6 +1,8 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
 using Movie.Api;
@@ -72,6 +74,30 @@ if (app.Environment.IsDevelopment())
     await using var scope = app.Services.CreateAsyncScope();
     await scope.ServiceProvider.GetRequiredService<MovieDbContext>().Database.MigrateAsync();
 }
+
+// The proxy in front of this API terminates TLS and forwards plain HTTP over
+// the Docker network, so both the real client IP (RateLimiting.cs's
+// per-caller partitions) and the original https scheme (UseHttpsRedirection
+// below) only become visible once these headers are trusted. Scoped to
+// Docker's private bridge range, not every network: a caller reaching this
+// container directly can never have a raw connection originating from
+// 172.16.0.0/12, so it cannot forge these headers to spoof its IP or dodge
+// the rate limiter.
+var forwardedHeaders = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+};
+var trustedProxyNetwork = new System.Net.IPNetwork(IPAddress.Parse("172.16.0.0"), 12);
+forwardedHeaders.KnownIPNetworks.Add(trustedProxyNetwork);
+app.UseForwardedHeaders(forwardedHeaders);
+
+// This assumes the proxy reaches the container through Docker's own bridge
+// NAT and therefore appears in this range -- true for the topology this was
+// configured against, but not verified against the actual host. Logged so a
+// deploy can be checked against reality rather than trusted blindly.
+app.Logger.LogInformation(
+    "Trusting X-Forwarded-For/X-Forwarded-Proto only from {TrustedProxyNetwork}.",
+    trustedProxyNetwork);
 
 app.UseHttpsRedirection();
 app.UseAuthentication();

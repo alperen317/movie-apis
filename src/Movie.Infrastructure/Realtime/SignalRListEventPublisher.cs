@@ -6,7 +6,9 @@ using Movie.Domain.Media;
 
 namespace Movie.Infrastructure.Realtime;
 
-public sealed class SignalRListEventPublisher(IHubContext<ListHub, IListHubClient> hub)
+public sealed class SignalRListEventPublisher(
+    IHubContext<ListHub, IListHubClient> hub,
+    UserConnectionTracker connections)
     : IListEventPublisher
 {
     public Task ItemAddedAsync(
@@ -36,6 +38,14 @@ public sealed class SignalRListEventPublisher(IHubContext<ListHub, IListHubClien
 
     public Task PollUpdatedAsync(Guid listId, CancellationToken cancellationToken = default) =>
         Group(listId).PollUpdated();
+
+    public async Task MemberEvictedAsync(Guid listId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        foreach (var connectionId in connections.ConnectionsFor(userId))
+        {
+            await hub.Groups.RemoveFromGroupAsync(connectionId, ListHub.GroupName(listId), cancellationToken);
+        }
+    }
 
     private IListHubClient Group(Guid listId) => hub.Clients.Group(ListHub.GroupName(listId));
 }

@@ -36,8 +36,12 @@ services:
       Brevo__SenderEmail: ${BREVO_SENDER_EMAIL}
       Brevo__SenderName: ${BREVO_SENDER_NAME}
       Sentry__Dsn: ${SENTRY_DSN:-}
+    # Bound to loopback -- the domain-fronting reverse proxy on this same VPS
+    # is the only thing that should reach this port directly; see the
+    # matching KnownIPNetworks trust in Program.cs. If the proxy ever moves to
+    # a different host, this needs to go back to "8080:8080".
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
 
 volumes:
   movie-db-data:

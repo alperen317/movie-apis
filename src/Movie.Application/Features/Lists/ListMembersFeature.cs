@@ -130,6 +130,7 @@ public sealed class RemoveMemberCommandHandler(
         await lists.RemoveMemberAsync(membership, cancellationToken);
 
         await events.MembersChangedAsync(membership.ListId, cancellationToken);
+        await events.MemberEvictedAsync(membership.ListId, membership.UserId, cancellationToken);
 
         return RemoveMemberOutcome.Removed;
     }

@@ -11,8 +11,8 @@ public sealed record ResetPasswordCommand(string Email, string Code, string NewP
     : IRequest<ResetPasswordResult>;
 
 /// <param name="PasswordErrors">
-/// Non-empty when the new password fails policy. Safe to report: reaching this
-/// point requires a live code, which only arrives in the account's own inbox.
+/// Non-empty when the new password fails policy. Says nothing about whether
+/// the account exists or the code is valid -- see the handler for why.
 /// </param>
 public sealed record ResetPasswordResult(
     VerificationResult Outcome,
@@ -35,20 +35,26 @@ public sealed class ResetPasswordCommandHandler(
         ResetPasswordCommand command,
         CancellationToken cancellationToken)
     {
-        var user = await users.FindByEmailAsync(command.Email.Trim());
+        var email = command.Email.Trim();
+
+        // Validated before the account is looked up, and against a throwaway
+        // user rather than a stored one -- see RegisterCommandHandler for the
+        // same pattern. Checking a real user first would mean a deliberately
+        // weak password comes back as "weak" for a registered, confirmed
+        // address and as "invalid code" for everything else: an
+        // account-existence oracle dressed up as validation, and one that
+        // doesn't even require guessing the code.
+        var passwordErrors = await ValidatePasswordAsync(email, command.NewPassword);
+        if (passwordErrors.Count > 0)
+        {
+            return ResetPasswordResult.WeakPassword(passwordErrors);
+        }
+
+        var user = await users.FindByEmailAsync(email);
 
         if (user is null || !user.EmailConfirmed)
         {
             return ResetPasswordResult.Failed(VerificationResult.Invalid);
-        }
-
-        // Checked before the code is spent. The other way round, typing a
-        // too-short password would burn the code and send the user back to
-        // their inbox for a new one.
-        var passwordErrors = await ValidatePasswordAsync(user, command.NewPassword);
-        if (passwordErrors.Count > 0)
-        {
-            return ResetPasswordResult.WeakPassword(passwordErrors);
         }
 
         var outcome = await codes.ConsumeAsync(
@@ -82,15 +88,14 @@ public sealed class ResetPasswordCommandHandler(
         return ResetPasswordResult.Succeeded;
     }
 
-    private async Task<IReadOnlyList<string>> ValidatePasswordAsync(
-        ApplicationUser user,
-        string password)
+    private async Task<IReadOnlyList<string>> ValidatePasswordAsync(string email, string password)
     {
+        var candidate = new ApplicationUser { UserName = email, Email = email };
         var errors = new List<string>();
 
         foreach (var validator in users.PasswordValidators)
         {
-            var result = await validator.ValidateAsync(users, user, password);
+            var result = await validator.ValidateAsync(users, candidate, password);
             if (!result.Succeeded)
             {
                 errors.AddRange(result.Errors.Select(error => error.Description));

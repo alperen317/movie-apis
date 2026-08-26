@@ -49,6 +49,7 @@ public static class DependencyInjection
         // without it, ICurrentUser — and everything built on it, IListAccess
         // included — silently sees nobody signed in from inside a hub method.
         services.AddSingleton<HttpContextPropagationHubFilter>();
+        services.AddSingleton<UserConnectionTracker>();
         services
             .AddSignalR(options => options.AddFilter<HttpContextPropagationHubFilter>())
             // The hub protocol has its own JsonSerializerOptions, entirely

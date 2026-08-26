@@ -1,5 +1,8 @@
+using System.Security.Claims;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.IdentityModel.JsonWebTokens;
 
 using Movie.Application.Abstractions.Lists;
 
@@ -17,8 +20,28 @@ namespace Movie.Infrastructure.Realtime;
 /// side — anyone could listen in on any list's changes just by knowing its id.
 /// </remarks>
 [Authorize]
-public sealed class ListHub(IListAccess access) : Hub<IListHubClient>
+public sealed class ListHub(IListAccess access, UserConnectionTracker connections) : Hub<IListHubClient>
 {
+    public override Task OnConnectedAsync()
+    {
+        if (TryGetUserId(out var userId))
+        {
+            connections.Add(userId, Context.ConnectionId);
+        }
+
+        return base.OnConnectedAsync();
+    }
+
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        if (TryGetUserId(out var userId))
+        {
+            connections.Remove(userId, Context.ConnectionId);
+        }
+
+        return base.OnDisconnectedAsync(exception);
+    }
+
     public async Task JoinList(Guid listId)
     {
         if (await access.ForMemberAsync(listId) is null)
@@ -35,4 +58,11 @@ public sealed class ListHub(IListAccess access) : Hub<IListHubClient>
         Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(listId));
 
     public static string GroupName(Guid listId) => $"list:{listId}";
+
+    // Context.User rather than ICurrentUser: HttpContextPropagationHubFilter
+    // only wraps a hub method invocation, not the connect/disconnect
+    // lifecycle, so IHttpContextAccessor.HttpContext -- and anything built on
+    // it -- is unavailable here.
+    private bool TryGetUserId(out Guid userId) =>
+        Guid.TryParse(Context.User?.FindFirstValue(JwtRegisteredClaimNames.Sub), out userId);
 }

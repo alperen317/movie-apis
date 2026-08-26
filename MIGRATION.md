@@ -491,6 +491,53 @@ tamamen manuel kalıyor. Integration testler Testcontainers ile kendi Postgres k
 başlatıyor — `ubuntu-latest` runner'ında Docker zaten kurulu, ekstra bir servis/adım
 gerekmedi.
 
+### Faz 8 sonrası — reverse proxy güveni ve SignalR eviction düzeltmesi
+
+Bir code review, deploy tamamlandıktan sonra üç eksik ortaya çıkardı; üçü de düzeltildi.
+
+**Atılan/silinen bir liste üyesinin SignalR bağlantısı gruptan hiç çıkarılmıyordu.**
+`ListHub`'ın `list:{listId}` grubu yalnızca `Groups.AddToGroupAsync`/`RemoveFromGroupAsync`
+ile, connectionId üzerinden yönetiliyordu — SignalR'da "şu userId'yi gruptan çıkar" diye bir
+API yok. Bir üye kaldırıldığında veya liste silindiğinde REST tarafı erişimi doğru reddediyordu
+ama üyenin hâlâ açık olan bağlantısı grupta kalmaya devam ediyor, `ItemAdded`/`ItemRemoved`/
+`ListRenamed`/`PollUpdated` yayınlarını almaya devam ediyordu. Çözüm:
+`UserConnectionTracker` (bellek içi singleton) `ListHub.OnConnectedAsync`/
+`OnDisconnectedAsync`'te userId → connectionId eşlemesini tutuyor;
+`IListEventPublisher.MemberEvictedAsync(listId, userId)` bu eşlemeyle o kullanıcının açık
+bağlantılarını `Groups.RemoveFromGroupAsync` ile gruptan zorla çıkarıyor.
+`RemoveMemberCommandHandler` ve `DeleteListCommandHandler` artık bunu çağırıyor. Regresyon
+testi: `ListHubTests.Removing_a_member_stops_their_notifications` — fix geçici kapatılarak
+testin gerçekten kırıldığı doğrulandı.
+
+**Rate limiter'ın IP partition'ı ve `UseHttpsRedirection()`, proxy arkasında gerçek istemci
+IP'sini/şemasını hiç görmüyordu.** `RateLimiting.cs`'nin `PartitionByCaller`/
+`PartitionByAccount`'ı `Connection.RemoteIpAddress`'e bakıyor, ama `Program.cs` forwarded
+header'lara hiç güvenmiyordu — proxy arkasında her istek aynı partition'a düşüyor, bir
+kullanıcının kötüye kullanımı herkesi 429'a düşürebiliyordu. `Program.cs`'e
+`UseForwardedHeaders()` eklendi, `KnownIPNetworks`'e yalnızca Docker'ın private bridge aralığı
+(`172.16.0.0/12`) eklendi — "her ağa güven" değil: bir saldırganın ham bağlantısı bu private
+aralıktan asla gelemeyeceği için `X-Forwarded-*` header'larını sahteleyip IP'sini gizleyemez ya
+da rate limiter'ı atlatamaz. `docker-compose.prod.yml`'de `api` portu `127.0.0.1:8080:8080`'e
+bağlandı — ek savunma katmanı, proxy aynı VPS'te olduğu için. Bu düzeltme
+`UseHttpsRedirection()`'ı da düzeltiyor: `Request.Scheme` artık `X-Forwarded-Proto`'dan doğru
+okunuyor, önceden ya sessizce no-op oluyordu ya da (Kestrel'e HTTPS eklenseydi) proxy'nin zaten
+hallettiği bir isteğe tekrar redirect atıp SignalR'ın WebSocket handshake'ini kırardı.
+
+**Proxy tarafında ayarlanması gereken, bu repo dışında kalan iki şey:**
+- `X-Forwarded-For` / `X-Forwarded-Proto` forward edilmeli (Caddy `reverse_proxy` ile
+  varsayılan yapıyor; Nginx'te elle: `proxy_set_header X-Forwarded-For
+  $proxy_add_x_forwarded_for;` / `proxy_set_header X-Forwarded-Proto $scheme;`).
+- WebSocket upgrade header'ları forward edilmeli, yoksa SignalR sessizce Long-Polling'e düşer
+  (bağlantı kopmaz ama yavaşlar): `proxy_http_version 1.1; proxy_set_header Upgrade
+  $http_upgrade; proxy_set_header Connection "upgrade";`
+
+**Bilinen sınır: `UserConnectionTracker` tek instance'a bağlı.** Bellek içi, instance'lar
+arasında paylaşılmıyor. Şu an `docker-compose.prod.yml`'de tek `api` container'ı var, sorun
+yok. API birden fazla replica ile çalıştırılmaya karar verilirse hem bu tracker'ın hem de genel
+SignalR grup broadcast'lerinin bir backplane'e (`AddStackExchangeRedis` gibi) taşınması
+gerekir — o olmadan bir instance'taki bağlantı, başka bir instance'ta tetiklenen bir
+broadcast'i/eviction'ı hiç görmez.
+
 ## Yerel geliştirme
 
 Her şeyi Docker'da çalıştırmak:

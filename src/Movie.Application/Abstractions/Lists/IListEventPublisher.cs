@@ -53,4 +53,12 @@ public interface IListEventPublisher
 
     /// <summary>A poll was started, or a vote moved its tally.</summary>
     Task PollUpdatedAsync(Guid listId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Forces a member's open connections out of the list's realtime group —
+    /// called after they're removed from the roster, or the list itself is
+    /// deleted, so they stop receiving further events for a list they can no
+    /// longer rejoin.
+    /// </summary>
+    Task MemberEvictedAsync(Guid listId, Guid userId, CancellationToken cancellationToken = default);
 }

@@ -129,6 +129,7 @@ public sealed record RemoveListItemCommand(Guid ListId, int MediaId, MediaType M
 public sealed class RemoveListItemCommandHandler(
     IListAccess access,
     IListStore lists,
+    IPollStore polls,
     IListEventPublisher events)
     : IRequestHandler<RemoveListItemCommand, bool>
 {
@@ -144,6 +145,15 @@ public sealed class RemoveListItemCommandHandler(
             return false;
         }
 
+        // Checked before the delete: removing the item cascades away any
+        // ListPollCandidate built on it (see ListPollCandidate), and there
+        // would be nothing left to ask afterward.
+        var wasPollCandidate = await polls.IsCandidateAsync(
+            list,
+            command.MediaId,
+            command.MediaType,
+            cancellationToken);
+
         // Whether a row actually went is not passed on. A title somebody else
         // removed a moment ago leaves the list in the state the caller asked
         // for, which is not a failure.
@@ -154,6 +164,11 @@ public sealed class RemoveListItemCommandHandler(
             command.MediaId,
             command.MediaType,
             cancellationToken);
+
+        if (wasPollCandidate)
+        {
+            await events.PollUpdatedAsync(list.Id, cancellationToken);
+        }
 
         return true;
     }

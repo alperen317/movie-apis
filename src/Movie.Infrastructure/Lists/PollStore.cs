@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Movie.Application.Abstractions;
 using Movie.Application.Abstractions.Lists;
 using Movie.Domain.Lists;
+using Movie.Domain.Media;
 using Movie.Infrastructure.Persistence;
 
 namespace Movie.Infrastructure.Lists;
@@ -156,6 +157,17 @@ public sealed class PollStore(MovieDbContext database, ICurrentUser currentUser)
 
         return CastVoteOutcome.Recorded;
     }
+
+    public Task<bool> IsCandidateAsync(
+        MediaList list,
+        int mediaId,
+        MediaType mediaType,
+        CancellationToken cancellationToken = default) =>
+        database.ListPollCandidates.AnyAsync(
+            candidate => candidate.ListItem!.ListId == list.Id
+                && candidate.ListItem.MediaId == mediaId
+                && candidate.ListItem.MediaType == mediaType,
+            cancellationToken);
 
     private static StartPollResult Failed(StartPollOutcome outcome) => new(outcome, PollId: null);
 }

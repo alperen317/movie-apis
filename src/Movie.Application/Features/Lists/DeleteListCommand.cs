@@ -36,7 +36,20 @@ public sealed class DeleteListCommandHandler(
         // about the deletion rather than just stop hearing about anything else.
         await events.ListDeletedAsync(list.Id, cancellationToken);
 
+        // Read the roster before the row goes away -- ListMembers cascades
+        // with it -- but evict only after the delete actually commits. Doing
+        // it the other way around would mean a failure in the eviction loop
+        // (a transient error, one connection among many) leaves some members
+        // forced out of a group for a list that, having never reached
+        // DeleteAsync, still exists.
+        var members = await lists.MembersAsync(list, cancellationToken);
+
         await lists.DeleteAsync(list, cancellationToken);
+
+        foreach (var member in members)
+        {
+            await events.MemberEvictedAsync(list.Id, member.UserId, cancellationToken);
+        }
 
         return true;
     }

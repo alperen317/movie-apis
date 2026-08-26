@@ -1,4 +1,5 @@
 using Movie.Domain.Lists;
+using Movie.Domain.Media;
 
 namespace Movie.Application.Abstractions.Lists;
 
@@ -34,6 +35,18 @@ public interface IPollStore
     Task<CastVoteOutcome> VoteAsync(
         ListPoll poll,
         Guid candidateId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether an item is nominated in any of the list's polls. Checked before
+    /// the item is removed from the list: removing it cascades away its
+    /// candidacy (see <see cref="ListPollCandidate"/>), and there would be
+    /// nothing left to ask afterward.
+    /// </summary>
+    Task<bool> IsCandidateAsync(
+        MediaList list,
+        int mediaId,
+        MediaType mediaType,
         CancellationToken cancellationToken = default);
 }
 

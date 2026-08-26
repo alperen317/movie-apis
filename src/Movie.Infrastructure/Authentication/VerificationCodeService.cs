@@ -77,19 +77,47 @@ public sealed class VerificationCodeService(
 
         if (hasher.VerifyHashedPassword(user, stored.CodeHash, code) == PasswordVerificationResult.Failed)
         {
-            // Counted before returning, so guessing costs an attempt whether or
-            // not the caller comes back to look at the result.
-            stored.Attempts++;
-            await database.SaveChangesAsync(cancellationToken);
+            // A conditional UPDATE rather than read-then-write: two concurrent
+            // wrong guesses both reading the same Attempts value would
+            // otherwise overwrite each other and only one guess would count.
+            // Guarding on ConsumedAt/Attempts here too means a guess that
+            // loses the race against a concurrent successful consumption (or
+            // against the attempt cap being hit first) falls through to the
+            // same answer a request arriving a moment later would have gotten.
+            var incremented = await database.VerificationCodes
+                .Where(x => x.Id == stored.Id
+                    && x.ConsumedAt == null
+                    && x.Attempts < VerificationCode.MaxAttempts)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(x => x.Attempts, x => x.Attempts + 1),
+                    cancellationToken);
 
-            return stored.Attempts >= VerificationCode.MaxAttempts
+            if (incremented == 0)
+            {
+                return VerificationResult.Invalid;
+            }
+
+            var attempts = await database.VerificationCodes
+                .Where(x => x.Id == stored.Id)
+                .Select(x => x.Attempts)
+                .SingleAsync(cancellationToken);
+
+            return attempts >= VerificationCode.MaxAttempts
                 ? VerificationResult.TooManyAttempts
                 : VerificationResult.Invalid;
         }
 
-        stored.ConsumedAt = now;
-        await database.SaveChangesAsync(cancellationToken);
+        // Claims the code with the same kind of conditional UPDATE: two
+        // concurrent requests holding the correct code would otherwise both
+        // read ConsumedAt == null and both be told Success.
+        var consumed = await database.VerificationCodes
+            .Where(x => x.Id == stored.Id
+                && x.ConsumedAt == null
+                && x.Attempts < VerificationCode.MaxAttempts)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(x => x.ConsumedAt, now),
+                cancellationToken);
 
-        return VerificationResult.Success;
+        return consumed == 1 ? VerificationResult.Success : VerificationResult.Invalid;
     }
 }

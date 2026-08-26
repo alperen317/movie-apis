@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
@@ -138,6 +139,117 @@ public sealed class ListHubTests(MovieApiFactory factory) : IClassFixture<MovieA
         calls.ShouldBe(0);
     }
 
+    /// <remarks>
+    /// Unlike <see cref="Leaving_the_group_stops_the_notifications"/>, the
+    /// removed member never calls LeaveList themselves — nothing client-side
+    /// tells their connection to leave the group. Regression test for the
+    /// eviction that <c>IListEventPublisher.MemberEvictedAsync</c> now forces
+    /// server-side: before it existed, a kicked member's still-open connection
+    /// kept hearing about a list they could no longer reach over REST.
+    /// </remarks>
+    [Fact]
+    public async Task Removing_a_member_stops_their_notifications()
+    {
+        var owner = await factory.SignedInAsync();
+        var member = await factory.SignedInAsync();
+        var listId = await CreateListAsync(owner, "Oscar Winners");
+        await AddMemberAsync(listId, member.Id, MemberStatus.Accepted);
+
+        await using var connection = await ConnectedAsync(member);
+        var calls = 0;
+        connection.On<ItemAddedPayload>("ItemAdded", _ => calls++);
+        await connection.InvokeAsync("JoinList", listId);
+
+        var membershipId = await MembershipIdAsync(owner, listId, member.Id);
+        await owner.Client.DeleteAsync($"/members/{membershipId}");
+
+        await owner.Client.PostAsJsonAsync($"/lists/{listId}/items", Inception);
+
+        // Nothing to await here, since nothing is supposed to arrive — give the
+        // broadcast a moment it would otherwise have used, then check it did not.
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        calls.ShouldBe(0);
+    }
+
+    /// <remarks>
+    /// Regression test for DeleteAccountCommandHandler: before it called
+    /// IListEventPublisher, deleting the account cascaded the list away at the
+    /// DB level with no realtime signal at all — a co-member's client would
+    /// just silently stop hearing about a list that, as far as it knew, still
+    /// existed.
+    /// </remarks>
+    [Fact]
+    public async Task Deleting_the_account_notifies_co_members_the_owned_list_is_gone()
+    {
+        var owner = await factory.SignedInAsync();
+        var member = await factory.SignedInAsync();
+        var listId = await CreateListAsync(owner, "Oscar Winners");
+        await AddMemberAsync(listId, member.Id, MemberStatus.Accepted);
+
+        await using var connection = await ConnectedAsync(member);
+        var listDeleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.On("ListDeleted", () => listDeleted.TrySetResult());
+        await connection.InvokeAsync("JoinList", listId);
+
+        var deleted = await owner.Client.DeleteAsync("/me");
+        deleted.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        await listDeleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    /// <remarks>
+    /// Same gap, the other direction: a list this account merely belongs to
+    /// (not owns) loses this member's row through the cascade, but nothing
+    /// told the list's remaining members the roster had changed.
+    /// </remarks>
+    [Fact]
+    public async Task Deleting_the_account_notifies_the_owner_a_joined_lists_roster_changed()
+    {
+        var owner = await factory.SignedInAsync();
+        var member = await factory.SignedInAsync();
+        var listId = await CreateListAsync(owner, "Oscar Winners");
+        await AddMemberAsync(listId, member.Id, MemberStatus.Accepted);
+
+        await using var connection = await ConnectedAsync(owner);
+        var membersChanged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.On("MembersChanged", () => membersChanged.TrySetResult());
+        await connection.InvokeAsync("JoinList", listId);
+
+        var deleted = await member.Client.DeleteAsync("/me");
+        deleted.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        await membersChanged.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    /// <remarks>
+    /// Regression test: removing an item cascades away any ListPollCandidate
+    /// built on it (see ListPollCandidate), but RemoveListItemCommandHandler
+    /// used to only broadcast ItemRemoved — a client watching the poll never
+    /// heard that one of its candidates had just disappeared.
+    /// </remarks>
+    [Fact]
+    public async Task Removing_a_poll_candidate_item_broadcasts_a_poll_update()
+    {
+        var owner = await factory.SignedInAsync();
+        var listId = await CreateListAsync(owner, "Oscar Winners");
+        var inceptionRowId = await AddItemAsync(owner, listId, Inception);
+        var arrivalRowId = await AddItemAsync(owner, listId, Arrival);
+        await owner.Client.PostAsJsonAsync($"/lists/{listId}/polls", new
+        {
+            deadline = DateTime.UtcNow.AddDays(1),
+            itemIds = new[] { inceptionRowId, arrivalRowId },
+        });
+
+        await using var connection = await ConnectedAsync(owner);
+        var pollUpdated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.On("PollUpdated", () => pollUpdated.TrySetResult());
+        await connection.InvokeAsync("JoinList", listId);
+
+        await owner.Client.DeleteAsync($"/lists/{listId}/items/movie/27205");
+
+        await pollUpdated.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
     private async Task<HubConnection> ConnectedAsync(MovieApiFactory.SignedInUser user)
     {
         var accessToken = user.Client.DefaultRequestHeaders.Authorization!.Parameter!;
@@ -165,6 +277,22 @@ public sealed class ListHubTests(MovieApiFactory factory) : IClassFixture<MovieA
         var list = await response.Content.ReadFromJsonAsync<CreatedListDto>();
 
         return list!.Id;
+    }
+
+    private async Task<Guid> MembershipIdAsync(MovieApiFactory.SignedInUser asUser, Guid listId, Guid userId)
+    {
+        var members = await asUser.Client.GetFromJsonAsync<List<MemberDto>>($"/lists/{listId}/members");
+
+        return members!.Single(m => m.UserId == userId).MembershipId;
+    }
+
+    /// <returns>The item's row id, which is what a poll's candidates point at.</returns>
+    private static async Task<Guid> AddItemAsync(MovieApiFactory.SignedInUser owner, Guid listId, object title)
+    {
+        var response = await owner.Client.PostAsJsonAsync($"/lists/{listId}/items", title);
+        var item = await response.Content.ReadFromJsonAsync<ItemDto>();
+
+        return item!.RowId;
     }
 
     /// <remarks>
@@ -198,7 +326,22 @@ public sealed class ListHubTests(MovieApiFactory factory) : IClassFixture<MovieA
         genres = new[] { "Action" },
     };
 
+    private static readonly object Arrival = new
+    {
+        id = 329865,
+        mediaType = "movie",
+        title = "Arrival",
+        posterPath = "/arrival.jpg",
+        voteAverage = 7.9m,
+        year = "2016",
+        genres = new[] { "Drama" },
+    };
+
     private sealed record CreatedListDto(Guid Id);
+
+    private sealed record MemberDto(Guid MembershipId, Guid UserId);
+
+    private sealed record ItemDto(Guid RowId);
 
     private sealed record ItemAddedPayload(
         [property: JsonPropertyName("title")] string Title,
