@@ -28,14 +28,30 @@ public sealed record LoginResult(AuthTokens? Tokens, LoginFailure? Failure)
 
 public sealed class LoginCommandHandler(
     UserManager<ApplicationUser> users,
+    IPasswordHasher<ApplicationUser> hasher,
     AuthTokenIssuer tokens) : IRequestHandler<LoginCommand, LoginResult>
 {
+    // A verifier the hasher can run its full PBKDF2 cost against when there is
+    // no real account to check. Without this, a missing email returns from a
+    // single lookup while a wrong password on a real one waits on the hash --
+    // a timing side channel that answers "does this address have an account"
+    // for anyone willing to measure it.
+    private static readonly ApplicationUser DummyUser = new()
+    {
+        UserName = "timing-guard@invalid",
+        Email = "timing-guard@invalid",
+    };
+
+    private static readonly string DummyPasswordHash =
+        new PasswordHasher<ApplicationUser>().HashPassword(DummyUser, Guid.NewGuid().ToString("N"));
+
     public async ValueTask<LoginResult> Handle(LoginCommand command, CancellationToken cancellationToken)
     {
         var user = await users.FindByEmailAsync(command.Email.Trim());
 
         if (user is null)
         {
+            hasher.VerifyHashedPassword(DummyUser, DummyPasswordHash, command.Password);
             return LoginResult.Failed(LoginFailure.InvalidCredentials);
         }
 

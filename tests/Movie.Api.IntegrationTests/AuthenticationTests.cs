@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -93,6 +94,49 @@ public sealed class AuthenticationTests(MovieApiFactory factory) : IClassFixture
         token.ExpiresAtUtc.ShouldBeInRange(
             DateTime.UtcNow.AddMinutes(14),
             DateTime.UtcNow.AddMinutes(16));
+    }
+
+    [Fact]
+    public async Task A_missing_account_costs_as_much_as_a_wrong_password()
+    {
+        // Both branches must run a full PBKDF2 verification, or the time to
+        // fail becomes a side channel for "does this email have an account"
+        // -- see LoginCommandHandler's DummyUser/DummyPasswordHash. Best-of-3
+        // and a generous ratio bound keep this from flaking on CI jitter
+        // while still catching a regression back to an early return.
+        var owner = await factory.SignedInAsync();
+        var client = factory.CreateClient();
+
+        var wrongPassword = await FastestLoginAttemptAsync(client, owner.Email, "not the password");
+        var missingAccount = await FastestLoginAttemptAsync(
+            client,
+            $"{Guid.NewGuid():N}@example.com",
+            "not the password");
+
+        var slower = Math.Max(wrongPassword.TotalMilliseconds, missingAccount.TotalMilliseconds);
+        var faster = Math.Max(1, Math.Min(wrongPassword.TotalMilliseconds, missingAccount.TotalMilliseconds));
+
+        (slower / faster).ShouldBeLessThan(3);
+    }
+
+    private static async Task<TimeSpan> FastestLoginAttemptAsync(HttpClient client, string email, string password)
+    {
+        var fastest = TimeSpan.MaxValue;
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var response = await client.PostAsJsonAsync("/auth/login", new { email, password });
+            stopwatch.Stop();
+
+            response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+            if (stopwatch.Elapsed < fastest)
+            {
+                fastest = stopwatch.Elapsed;
+            }
+        }
+
+        return fastest;
     }
 
     private AccessToken IssueToken()

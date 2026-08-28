@@ -132,15 +132,37 @@ public sealed class PollStore(MovieDbContext database, ICurrentUser currentUser)
             return CastVoteOutcome.InvalidCandidate;
         }
 
+        try
+        {
+            await UpsertVoteAsync(poll.Id, candidateId, userId, cancellationToken);
+        }
+        catch (DbUpdateException e) when (UniqueViolations.Caused(e))
+        {
+            // Two devices voting for the first time at once can each read "no
+            // vote yet." One retry settles it: the second read sees the row
+            // the other request inserted and updates it instead.
+            database.ForgetPendingInserts<ListPollVote>();
+            await UpsertVoteAsync(poll.Id, candidateId, userId, cancellationToken);
+        }
+
+        return CastVoteOutcome.Recorded;
+    }
+
+    private async Task UpsertVoteAsync(
+        Guid pollId,
+        Guid candidateId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
         var vote = await database.ListPollVotes.FirstOrDefaultAsync(
-            existing => existing.PollId == poll.Id && existing.UserId == userId,
+            existing => existing.PollId == pollId && existing.UserId == userId,
             cancellationToken);
 
         if (vote is null)
         {
             database.ListPollVotes.Add(new ListPollVote
             {
-                PollId = poll.Id,
+                PollId = pollId,
                 CandidateId = candidateId,
                 UserId = userId,
             });
@@ -154,8 +176,6 @@ public sealed class PollStore(MovieDbContext database, ICurrentUser currentUser)
         }
 
         await database.SaveChangesAsync(cancellationToken);
-
-        return CastVoteOutcome.Recorded;
     }
 
     public Task<bool> IsCandidateAsync(

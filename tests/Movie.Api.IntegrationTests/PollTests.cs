@@ -178,6 +178,30 @@ public sealed class PollTests(MovieApiFactory factory) : IClassFixture<MovieApiF
     }
 
     [Fact]
+    public async Task Voting_twice_at_once_settles_on_one_vote_instead_of_a_500()
+    {
+        // Two requests from the same voter can both read "no vote yet" before
+        // either writes -- see PollStore.VoteAsync's unique-violation retry.
+        var owner = await factory.SignedInAsync();
+        var voter = await factory.SignedInAsync();
+        var listId = await CreateListAsync(owner);
+        await AddMemberAsync(listId, voter.Id);
+        var (inception, arrival) = await AddTwoItemsAsync(owner, listId);
+        var pollId = await StartAndGetIdAsync(owner, listId, inception, arrival);
+        var candidateId = (await Poll(owner, listId))!.Candidates
+            .Single(x => x.ListItemId == inception).Id;
+
+        var responses = await Task.WhenAll(
+            voter.Client.PostAsJsonAsync($"/polls/{pollId}/votes", new { candidateId }),
+            voter.Client.PostAsJsonAsync($"/polls/{pollId}/votes", new { candidateId }));
+
+        responses.ShouldAllBe(x => x.StatusCode == HttpStatusCode.NoContent);
+
+        var seenByOwner = (await Poll(owner, listId))!.Candidates.Single(x => x.Id == candidateId);
+        seenByOwner.VoteCount.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task Changing_your_mind_moves_the_vote_rather_than_adding_one()
     {
         var owner = await factory.SignedInAsync();

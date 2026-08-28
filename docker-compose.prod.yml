@@ -31,6 +31,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: 8080
       ConnectionStrings__Database: "Host=db;Port=5432;Database=movie;Username=movie;Password=${POSTGRES_PASSWORD}"
+      # Pin this to the real production domain (e.g. api.example.com) once one
+      # exists; "*" -- the default if unset, matching appsettings.json -- turns
+      # off ASP.NET Core's Host header validation entirely.
+      AllowedHosts: ${ALLOWED_HOSTS:-*}
       Jwt__SigningKey: ${JWT_SIGNING_KEY}
       Brevo__ApiKey: ${BREVO_API_KEY}
       Brevo__SenderEmail: ${BREVO_SENDER_EMAIL}

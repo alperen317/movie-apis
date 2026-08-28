@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
@@ -15,11 +16,31 @@ using Movie.Infrastructure.Realtime;
 
 using Scalar.AspNetCore;
 
+using Sentry;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // A no-op when Sentry:Dsn is unset, the same behavior as the mobile client's
 // EXPO_PUBLIC_SENTRY_DSN -- see appsettings.json.
-builder.WebHost.UseSentry(options => options.Dsn = builder.Configuration["Sentry:Dsn"]);
+builder.WebHost.UseSentry(options =>
+{
+    options.Dsn = builder.Configuration["Sentry:Dsn"];
+
+    // The SignalR client puts its access token on the query string (see
+    // AddJwtAuthentication's OnMessageReceived) -- without this, a hub
+    // request that ends up in an event or transaction carries the raw token
+    // to Sentry, a third party.
+    options.SetBeforeSend((SentryEvent @event, SentryHint _) =>
+    {
+        ScrubAccessToken(@event.Request);
+        return @event;
+    });
+    options.SetBeforeSendTransaction((SentryTransaction transaction, SentryHint _) =>
+    {
+        ScrubAccessToken(transaction.Request);
+        return transaction;
+    });
+});
 
 builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
@@ -34,6 +55,11 @@ builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.Is
 builder.Services.AddAuthorization();
 builder.Services.AddApiRateLimiting(builder.Configuration);
 builder.Services.AddHealthChecks().AddDbContextCheck<MovieDbContext>();
+
+// So an unhandled exception in Production comes back as a generic
+// ProblemDetails (with a traceId to correlate against Sentry/logs) instead of
+// an empty 500 -- see the UseExceptionHandler call below.
+builder.Services.AddProblemDetails();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -91,6 +117,13 @@ var trustedProxyNetwork = new System.Net.IPNetwork(IPAddress.Parse("172.16.0.0")
 forwardedHeaders.KnownIPNetworks.Add(trustedProxyNetwork);
 app.UseForwardedHeaders(forwardedHeaders);
 
+// Development leaves this off so a failure shows its real detail locally;
+// Production would otherwise send back framework's bare, empty 500.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler();
+}
+
 // This assumes the proxy reaches the container through Docker's own bridge
 // NAT and therefore appears in this range -- true for the topology this was
 // configured against, but not verified against the actual host. Logged so a
@@ -129,6 +162,32 @@ app.MapHub<ListHub>("/hubs/list");
 app.MapHealthChecks("/health");
 
 app.Run();
+
+/// <summary>
+/// Redacts the SignalR access token from a Sentry request's URL and query
+/// string in place, so a hub connection's event or transaction does not carry
+/// a live JWT to a third party.
+/// </summary>
+static void ScrubAccessToken(Sentry.SentryRequest? request)
+{
+    if (request is null)
+    {
+        return;
+    }
+
+    const string pattern = "access_token=[^&]*";
+    const string replacement = "access_token=REDACTED";
+
+    if (request.QueryString is { Length: > 0 } queryString)
+    {
+        request.QueryString = Regex.Replace(queryString, pattern, replacement);
+    }
+
+    if (request.Url is { Length: > 0 } url)
+    {
+        request.Url = Regex.Replace(url, pattern, replacement);
+    }
+}
 
 /// <summary>
 /// Exposed so the integration tests can drive the real application through
