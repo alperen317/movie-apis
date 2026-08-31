@@ -538,6 +538,91 @@ SignalR grup broadcast'lerinin bir backplane'e (`AddStackExchangeRedis` gibi) ta
 gerekir — o olmadan bir instance'taki bağlantı, başka bir instance'ta tetiklenen bir
 broadcast'i/eviction'ı hiç görmez.
 
+### Faz 9 — Eski Supabase verisinin taşınması
+
+Faz 1'deki "veri taşıma yok" kararı, o an canlı kullanıcı olmamasına
+dayanıyordu. Eski Supabase projesinde (`drprzsnlkwsykijjpval`) gerçek
+kullanıcı verisi biriktiği ortaya çıkınca bu karar geri alındı.
+
+**Şifreler.** Supabase/GoTrue bcrypt kullanıyor, bu API'nin Identity katmanı
+PBKDF2. İkisi arasında dönüştürme yapmak yerine `LegacyPasswordHasher`
+(`src/Movie.Infrastructure/Authentication/LegacyPasswordHasher.cs`) eklendi:
+hash `$2a$`/`$2b$`/`$2y$` ile başlıyorsa bcrypt olarak doğrulanır ve
+başarılı doğrulamada Identity'nin kendi `SuccessRehashNeeded` mekanizmasıyla
+sessizce PBKDF2'ye çevrilir — taşınan kullanıcı eski şifresiyle giriş yapar,
+hiçbir şey fark etmez. Yeni kayıtlar bu yola hiç girmez.
+
+**Taşıma aracı.** `tools/SupabaseImport`, tek seferlik bir konsol aracı.
+Eski DB'yi (`LEGACY_DB_CONNECTION`) ham `Npgsql` ile okuyor, hedef DB'ye
+(`TARGET_DB_CONNECTION`) `MovieDbContext` üzerinden yazıyor — GUID'ler,
+enum metinleri ve tablo/kolon adları iki şema arasında zaten birebir
+örtüştüğü için (aynı taşıma planına göre kurulduklarından) satır satır
+dönüşüm gerekmiyor. Taşınanlar: `users` (`auth.users` + `profiles`
+birleşimi), `lists`, `list_members`, `list_items`, `list_polls` ve
+candidate/vote'ları, `saved_media`, `watch_log`, `episode_progress`,
+`recommendation_feedback`. Taşınmayanlar: `refresh_tokens`,
+`verification_codes` (GoTrue'nun oturum mekanizması tamamen farklı, yeni
+sistemde sıfırdan alınıyor) ve rate-limit sayaç tabloları.
+
+Hedef `users` tablosu boş değilse `--force` verilmeden çalışmayı reddediyor,
+her tablo için taşınan satır sayısını ve birkaç FK bütünlük kontrolünü
+sonunda raporluyor.
+
+**Bilinen sınır:** Araç `auth.users`/`public.profiles`'ı olduğu haliyle
+okuyor; GoTrue'nun `deleted_at` kolonu varsa silinmiş hesapları otomatik
+atlıyor, yoksa hepsini taşıyor — çalıştırmadan önce bu davranış üretim
+verisine karşı doğrulanmalı.
+
+**Nasıl çalıştırılır.**
+
+1. **Eski DB bağlantı bilgisi:** Supabase dashboard →
+   `drprzsnlkwsykijjpval` projesi → *Project Settings* → *Database* →
+   *Connection string* (URI biçimi, "Session pooler" değil "Direct
+   connection" seçilmeli — `dblink`/toplu okuma için doğrudan bağlantı
+   istenir). Şifre orada görünmüyorsa *Reset database password* ile
+   sıfırlanabilir.
+
+2. **Hedef DB'ye erişim:** `docker-compose.prod.yml`'de Postgres konteyneri
+   dışa port açmıyor (yalnızca `api` container'ı iç ağdan erişiyor), yani
+   araç ya VPS üzerinde ya da bir SSH tüneliyle çalıştırılmalı:
+   ```bash
+   # VPS'te, repo dizininde bir kerelik bağlantı tüneli:
+   ssh -N -L 15432:127.0.0.1:5432 <vps-kullanıcı>@<vps-host>
+   # ayrı bir terminalde, docker-compose.prod.yml'deki db servisine
+   # doğrudan bağlanmak için (VPS üzerinde çalıştırılıyorsa):
+   docker compose -f docker-compose.prod.yml exec db psql -U movie -d movie -c '\dt'
+   ```
+   En basiti aracı doğrudan VPS'te, compose ağının içinde çalıştırmak —
+   `TARGET_DB_CONNECTION` o zaman `Host=db;...` (container adı) olur, tünele
+   gerek kalmaz.
+
+3. **Önce kuru koşu (önerilir):** Yerel/scratch bir Postgres'e karşı dene —
+   gerçek Supabase'e salt-okunur bağlanmak zararsız, hedefe zarar vermez.
+   ```bash
+   docker compose up -d db          # yerel dev DB
+   dotnet run --project src/Movie.Api -- --migrate   # boş şemayı kur
+
+   export LEGACY_DB_CONNECTION="Host=db.drprzsnlkwsykijjpval.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=<şifre>;SSL Mode=Require;Trust Server Certificate=true"
+   export TARGET_DB_CONNECTION="Host=localhost;Port=5435;Database=movie;Username=movie;Password=movie_dev_password"
+
+   dotnet run --project tools/SupabaseImport
+   ```
+   Windows/PowerShell'de `export` yerine `$env:LEGACY_DB_CONNECTION = "..."`.
+
+4. **Doğrula:** Aracın bastığı satır sayılarını ve "Integrity checks" bloğunu
+   kontrol et (hepsi `OK` olmalı). Sonra API'yi bu scratch DB'ye karşı
+   çalıştırıp gerçek bir kullanıcının eski şifresiyle `POST /auth/login`
+   dene; başarılıysa `users.password_hash` kolonunun o kullanıcı için
+   `$2a$...`'dan Identity'nin `AQAAAA...` önekine döndüğünü doğrula (rehash
+   çalıştığının kanıtı).
+
+5. **Üretime çalıştır:** Kuru koşu temizse, aynı adımları `TARGET_DB_CONNECTION`'ı
+   VPS'teki gerçek DB'ye (adım 2) işaret edecek şekilde tekrarla — bu sefer
+   `--force` **verme** (hedef `users` tablosu dolu değilse zaten gerekmez;
+   doluysa önce neden dolu olduğunu anla, körü körüne `--force` geçme).
+   Çalıştırmadan hemen önce eski Supabase projesinde bir `pg_dump` yedeği
+   almak ek güvenlik.
+
 ## Yerel geliştirme
 
 Her şeyi Docker'da çalıştırmak:

@@ -155,6 +155,12 @@ public static class DependencyInjection
             .AddTokenProvider<DataProtectorTokenProvider<ApplicationUser>>(
                 TokenOptions.DefaultProvider);
 
+        // Replaces AddIdentityCore's TryAddScoped default registration above:
+        // recognizes the bcrypt hashes carried over from the old Supabase
+        // accounts alongside Identity's own PBKDF2 ones -- see
+        // LegacyPasswordHasher.
+        services.AddScoped<IPasswordHasher<ApplicationUser>, LegacyPasswordHasher>();
+
         services.AddDataProtection();
 
         // The six-digit codes are ours, not Identity's: see VerificationCode

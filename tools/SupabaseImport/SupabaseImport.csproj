@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Brings in MovieDbContext, the entities and Npgsql.EntityFrameworkCore.PostgreSQL
+         (which pulls in the plain Npgsql client this tool uses to read the old
+         Supabase database directly - that schema isn't modeled here). -->
+    <ProjectReference Include="..\..\src\Movie.Infrastructure\Movie.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

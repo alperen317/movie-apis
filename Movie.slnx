@@ -9,4 +9,7 @@
     <Project Path="tests/Movie.Api.IntegrationTests/Movie.Api.IntegrationTests.csproj" />
     <Project Path="tests/Movie.Application.Tests/Movie.Application.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/SupabaseImport/SupabaseImport.csproj" />
+  </Folder>
 </Solution>
